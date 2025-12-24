@@ -1,0 +1,35 @@
+{
+    "name": "container-manager",
+    "version": "0.1.0",
+    "description": "A management platform for Cloudflare Containers",
+    "type": "module",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "lint": "eslint src/",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "check": "npm run lint && npm run typecheck"
+    },
+    "keywords": [
+        "cloudflare",
+        "containers",
+        "typescript"
+    ],
+    "author": "Adamic.tech",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/neverinfamous/container-manager.git"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.39.1",
+        "@types/node": "^25.0.1",
+        "eslint": "^9.39.1",
+        "globals": "^16.2.0",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.49.0",
+        "vitest": "^4.0.15"
+    }
+}
