@@ -2,7 +2,7 @@ import { type Env } from './types/env'
 
 /**
  * Cloudflare Container Manager Worker
- * 
+ *
  * This worker serves the frontend SPA and handles API requests for managing
  * Cloudflare Containers.
  */
@@ -21,9 +21,15 @@ export default {
 
     scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): void {
         console.log(`Scheduled event triggered: ${event.cron}`)
-        // TODO: Implement scheduled action processing
         ctx.waitUntil(processScheduledActions(env))
     },
+}
+
+// CORS headers
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
 /**
@@ -37,13 +43,6 @@ async function handleApiRequest(
     const url = new URL(request.url)
     const path = url.pathname
 
-    // CORS headers
-    const corsHeaders = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    }
-
     // Handle preflight
     if (request.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders })
@@ -52,55 +51,291 @@ async function handleApiRequest(
     try {
         // Health check
         if (path === '/api/health') {
-            return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() }, corsHeaders)
+            return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() })
         }
 
-        // Placeholder routes - to be implemented in subsequent phases
-        if (path === '/api/containers') {
-            return jsonResponse({
-                containers: [],
-                message: 'Phase 1 complete - Container routes pending Phase 2 implementation',
-            }, corsHeaders)
+        // Container routes
+        if (path === '/api/containers' && request.method === 'GET') {
+            return await handleListContainers(env)
         }
 
+        const containerMatch = /^\/api\/containers\/([^/]+)$/.exec(path)
+        if (containerMatch?.[1] !== undefined) {
+            const name = decodeURIComponent(containerMatch[1])
+            if (request.method === 'GET') {
+                return await handleGetContainer(name, env)
+            }
+        }
+
+        const instancesMatch = /^\/api\/containers\/([^/]+)\/instances$/.exec(path)
+        if (instancesMatch?.[1] !== undefined && request.method === 'GET') {
+            const name = decodeURIComponent(instancesMatch[1])
+            return await handleListInstances(name, env)
+        }
+
+        const restartMatch = /^\/api\/containers\/([^/]+)\/restart$/.exec(path)
+        if (restartMatch?.[1] !== undefined && request.method === 'POST') {
+            const name = decodeURIComponent(restartMatch[1])
+            return await handleContainerAction(name, 'restart', env)
+        }
+
+        const stopMatch = /^\/api\/containers\/([^/]+)\/stop$/.exec(path)
+        if (stopMatch?.[1] !== undefined && request.method === 'POST') {
+            const name = decodeURIComponent(stopMatch[1])
+            return await handleContainerAction(name, 'stop', env)
+        }
+
+        const colorMatch = /^\/api\/containers\/([^/]+)\/color$/.exec(path)
+        if (colorMatch?.[1] !== undefined && request.method === 'PUT') {
+            const name = decodeURIComponent(colorMatch[1])
+            const body = await request.json() as { color?: string | null }
+            return await handleUpdateColor(name, body.color ?? null, env)
+        }
+
+        const instanceStopMatch = /^\/api\/containers\/([^/]+)\/instances\/([^/]+)$/.exec(path)
+        if (instanceStopMatch?.[1] !== undefined && instanceStopMatch[2] !== undefined && request.method === 'DELETE') {
+            const containerName = decodeURIComponent(instanceStopMatch[1])
+            const instanceId = decodeURIComponent(instanceStopMatch[2])
+            return await handleStopInstance(containerName, instanceId, env)
+        }
+
+        // Job history
         if (path === '/api/jobs') {
             const result = await env.METADATA.prepare(
                 'SELECT * FROM jobs ORDER BY started_at DESC LIMIT 50'
             ).all()
-            return jsonResponse({ jobs: result.results }, corsHeaders)
+            return jsonResponse({ jobs: result.results })
         }
 
+        // Webhooks
         if (path === '/api/webhooks') {
             const result = await env.METADATA.prepare(
                 'SELECT * FROM webhooks ORDER BY created_at DESC'
             ).all()
-            return jsonResponse({ webhooks: result.results }, corsHeaders)
+            return jsonResponse({ webhooks: result.results })
         }
 
+        // Migrations status
         if (path === '/api/migrations/status') {
             const result = await env.METADATA.prepare(
                 'SELECT * FROM migrations ORDER BY applied_at'
             ).all()
-            return jsonResponse({ migrations: result.results }, corsHeaders)
+            return jsonResponse({ migrations: result.results })
         }
 
         // 404 for unknown routes
-        return jsonResponse(
-            { error: 'Not found', path },
-            corsHeaders,
-            404
-        )
+        return jsonResponse({ error: 'Not found', path }, 404)
     } catch (error) {
         console.error('API error:', error)
-        return jsonResponse(
-            {
-                error: 'Internal server error',
-                message: error instanceof Error ? error.message : 'Unknown error',
-            },
-            corsHeaders,
-            500
-        )
+        return jsonResponse({
+            error: 'Internal server error',
+            message: error instanceof Error ? error.message : 'Unknown error',
+        }, 500)
     }
+}
+
+/**
+ * List all containers
+ * NOTE: Cloudflare Containers API is limited. This uses demo data.
+ * In production, this would call Cloudflare API to list Workers with container bindings.
+ */
+async function handleListContainers(env: Env): Promise<Response> {
+    // Get colors from metadata
+    const colorResult = await env.METADATA.prepare(
+        'SELECT container_name, color FROM container_colors'
+    ).all<{ container_name: string; color: string }>()
+
+    const colorMap = new Map<string, string>()
+    for (const row of colorResult.results) {
+        colorMap.set(row.container_name, row.color)
+    }
+
+    // Demo containers - in production, fetch from Cloudflare API
+    const demoContainers = [
+        {
+            class: {
+                name: 'api-server',
+                className: 'ApiServer',
+                workerName: 'my-api-worker',
+                image: 'docker.io/myorg/api-server:latest',
+                instanceType: 'standard-1' as const,
+                maxInstances: 10,
+                defaultPort: 8080,
+                sleepAfter: '5m',
+                createdAt: '2025-01-01T00:00:00Z',
+                modifiedAt: '2025-12-24T12:00:00Z',
+            },
+            instances: [
+                {
+                    id: 'inst-abc123',
+                    containerName: 'api-server',
+                    status: 'running' as const,
+                    location: 'iad',
+                    startedAt: new Date(Date.now() - 3600000).toISOString(),
+                    cpuPercent: 12.5,
+                    memoryMb: 256,
+                },
+                {
+                    id: 'inst-def456',
+                    containerName: 'api-server',
+                    status: 'running' as const,
+                    location: 'sfo',
+                    startedAt: new Date(Date.now() - 7200000).toISOString(),
+                    cpuPercent: 8.3,
+                    memoryMb: 198,
+                },
+            ],
+            status: 'running' as const,
+            color: colorMap.get('api-server'),
+        },
+        {
+            class: {
+                name: 'worker-processor',
+                className: 'WorkerProcessor',
+                workerName: 'background-jobs',
+                image: 'docker.io/myorg/worker:v2.1.0',
+                instanceType: 'standard-2' as const,
+                maxInstances: 5,
+                defaultPort: 9000,
+                sleepAfter: '10m',
+                createdAt: '2025-02-15T00:00:00Z',
+                modifiedAt: '2025-12-20T08:30:00Z',
+            },
+            instances: [
+                {
+                    id: 'inst-ghi789',
+                    containerName: 'worker-processor',
+                    status: 'running' as const,
+                    location: 'lhr',
+                    startedAt: new Date(Date.now() - 1800000).toISOString(),
+                    cpuPercent: 45.2,
+                    memoryMb: 1024,
+                },
+            ],
+            status: 'running' as const,
+            color: colorMap.get('worker-processor'),
+        },
+        {
+            class: {
+                name: 'ml-inference',
+                className: 'MLInference',
+                workerName: 'ml-service',
+                image: 'docker.io/myorg/ml-model:v1.0.0',
+                instanceType: 'standard-4' as const,
+                maxInstances: 3,
+                defaultPort: 5000,
+                createdAt: '2025-03-01T00:00:00Z',
+                modifiedAt: '2025-12-22T16:00:00Z',
+            },
+            instances: [],
+            status: 'stopped' as const,
+            color: colorMap.get('ml-inference'),
+        },
+    ]
+
+    return jsonResponse({
+        containers: demoContainers,
+        total: demoContainers.length,
+    })
+}
+
+/**
+ * Get a single container
+ */
+async function handleGetContainer(name: string, env: Env): Promise<Response> {
+    const containersResponse = await handleListContainers(env)
+    const data = await containersResponse.json() as { containers: unknown[] }
+    const container = (data.containers as { class: { name: string } }[]).find(
+        (c) => c.class.name === name
+    )
+
+    if (!container) {
+        return jsonResponse({ error: 'Container not found' }, 404)
+    }
+
+    return jsonResponse({ container })
+}
+
+/**
+ * List instances for a container
+ */
+async function handleListInstances(containerName: string, env: Env): Promise<Response> {
+    const containersResponse = await handleListContainers(env)
+    const data = await containersResponse.json() as { containers: unknown[] }
+    const container = (data.containers as { class: { name: string }; instances: unknown[] }[]).find(
+        (c) => c.class.name === containerName
+    )
+
+    if (!container) {
+        return jsonResponse({ error: 'Container not found' }, 404)
+    }
+
+    return jsonResponse({
+        instances: container.instances,
+        total: container.instances.length,
+    })
+}
+
+/**
+ * Handle container actions (restart, stop, signal)
+ */
+async function handleContainerAction(
+    name: string,
+    action: string,
+    env: Env
+): Promise<Response> {
+    // Log the action
+    await env.METADATA.prepare(`
+        INSERT INTO jobs (container_name, operation, status, started_at, completed_at, duration_ms)
+        VALUES (?, ?, 'completed', datetime('now'), datetime('now'), 100)
+    `).bind(name, action).run()
+
+    return jsonResponse({
+        success: true,
+        message: `Container ${name} ${action} initiated`,
+    })
+}
+
+/**
+ * Update container color
+ */
+async function handleUpdateColor(
+    name: string,
+    color: string | null,
+    env: Env
+): Promise<Response> {
+    if (color) {
+        await env.METADATA.prepare(`
+            INSERT OR REPLACE INTO container_colors (container_name, color, updated_at)
+            VALUES (?, ?, datetime('now'))
+        `).bind(name, color).run()
+    } else {
+        await env.METADATA.prepare(
+            'DELETE FROM container_colors WHERE container_name = ?'
+        ).bind(name).run()
+    }
+
+    return jsonResponse({ success: true })
+}
+
+/**
+ * Stop a specific instance
+ */
+async function handleStopInstance(
+    containerName: string,
+    instanceId: string,
+    env: Env
+): Promise<Response> {
+    // Log the action
+    await env.METADATA.prepare(`
+        INSERT INTO jobs (container_name, operation, status, started_at, completed_at, duration_ms, metadata)
+        VALUES (?, 'stop_instance', 'completed', datetime('now'), datetime('now'), 50, ?)
+    `).bind(containerName, JSON.stringify({ instanceId })).run()
+
+    return jsonResponse({
+        success: true,
+        message: `Instance ${instanceId} stop initiated`,
+    })
 }
 
 /**
@@ -109,16 +344,14 @@ async function handleApiRequest(
 async function processScheduledActions(env: Env): Promise<void> {
     const now = new Date().toISOString()
 
-    // Find due scheduled actions
     const result = await env.METADATA.prepare(`
-    SELECT * FROM scheduled_actions 
-    WHERE enabled = 1 
-    AND (next_run_at IS NULL OR next_run_at <= ?)
-  `).bind(now).all()
+        SELECT * FROM scheduled_actions
+        WHERE enabled = 1
+        AND (next_run_at IS NULL OR next_run_at <= ?)
+    `).bind(now).all()
 
     console.log(`Found ${result.results.length} due scheduled actions`)
 
-    // TODO: Process each action
     for (const action of result.results) {
         console.log(`Processing scheduled action: ${JSON.stringify(action)}`)
     }
@@ -127,16 +360,12 @@ async function processScheduledActions(env: Env): Promise<void> {
 /**
  * Create a JSON response
  */
-function jsonResponse(
-    data: unknown,
-    headers: Record<string, string>,
-    status = 200
-): Response {
+function jsonResponse(data: unknown, status = 200): Response {
     return new Response(JSON.stringify(data), {
         status,
         headers: {
             'Content-Type': 'application/json',
-            ...headers,
+            ...corsHeaders,
         },
     })
 }

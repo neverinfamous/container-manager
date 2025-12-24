@@ -1,8 +1,13 @@
-import { Container, Moon, Sun, Monitor } from 'lucide-react'
-import { useTheme } from './contexts/ThemeContext'
+import { Container, Moon, Sun, Monitor, BarChart3, GitBranch, Clock } from 'lucide-react'
+import { useTheme } from './hooks/useTheme'
+import { ContainerGrid } from './components/ContainerGrid'
+import { useState } from 'react'
+
+type Page = 'containers' | 'topology' | 'metrics' | 'jobs'
 
 function App(): React.ReactNode {
-    const { theme, setTheme, resolvedTheme } = useTheme()
+    const { theme, setTheme } = useTheme()
+    const [currentPage, setCurrentPage] = useState<Page>('containers')
 
     return (
         <div className="min-h-screen bg-background">
@@ -14,19 +19,47 @@ function App(): React.ReactNode {
                         <span>Container Manager</span>
                     </div>
 
-                    <nav className="ml-6 flex items-center gap-4 text-sm">
-                        <a href="#" className="text-foreground/60 hover:text-foreground transition-colors">
+                    <nav className="ml-6 flex items-center gap-1 text-sm">
+                        <button
+                            onClick={() => setCurrentPage('containers')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${currentPage === 'containers'
+                                ? 'bg-muted text-foreground'
+                                : 'text-foreground/60 hover:text-foreground hover:bg-muted/50'
+                                }`}
+                        >
+                            <Container className="h-4 w-4" />
                             Containers
-                        </a>
-                        <a href="#" className="text-foreground/60 hover:text-foreground transition-colors">
+                        </button>
+                        <button
+                            onClick={() => setCurrentPage('topology')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${currentPage === 'topology'
+                                ? 'bg-muted text-foreground'
+                                : 'text-foreground/60 hover:text-foreground hover:bg-muted/50'
+                                }`}
+                        >
+                            <GitBranch className="h-4 w-4" />
                             Topology
-                        </a>
-                        <a href="#" className="text-foreground/60 hover:text-foreground transition-colors">
+                        </button>
+                        <button
+                            onClick={() => setCurrentPage('metrics')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${currentPage === 'metrics'
+                                ? 'bg-muted text-foreground'
+                                : 'text-foreground/60 hover:text-foreground hover:bg-muted/50'
+                                }`}
+                        >
+                            <BarChart3 className="h-4 w-4" />
                             Metrics
-                        </a>
-                        <a href="#" className="text-foreground/60 hover:text-foreground transition-colors">
+                        </button>
+                        <button
+                            onClick={() => setCurrentPage('jobs')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${currentPage === 'jobs'
+                                ? 'bg-muted text-foreground'
+                                : 'text-foreground/60 hover:text-foreground hover:bg-muted/50'
+                                }`}
+                        >
+                            <Clock className="h-4 w-4" />
                             Jobs
-                        </a>
+                        </button>
                     </nav>
 
                     <div className="ml-auto flex items-center gap-2">
@@ -60,57 +93,62 @@ function App(): React.ReactNode {
 
             {/* Main content */}
             <main className="container py-6">
-                <div className="flex flex-col gap-6">
-                    {/* Hero section */}
-                    <div className="flex flex-col gap-2">
-                        <h1 className="text-3xl font-bold tracking-tight">Containers</h1>
-                        <p className="text-muted-foreground">
-                            Manage your Cloudflare Container instances
-                        </p>
+                {currentPage === 'containers' && (
+                    <div className="flex flex-col gap-6">
+                        <div className="flex flex-col gap-2">
+                            <h1 className="text-3xl font-bold tracking-tight">Containers</h1>
+                            <p className="text-muted-foreground">
+                                Manage your Cloudflare Container instances
+                            </p>
+                        </div>
+                        <ContainerGrid />
                     </div>
+                )}
 
-                    {/* Placeholder content */}
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {[1, 2, 3].map((i) => (
-                            <div
-                                key={i}
-                                className="rounded-lg border bg-card p-6 shadow-sm"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="rounded-full bg-primary/10 p-2">
-                                        <Container className="h-5 w-5 text-primary" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-semibold">Container {i}</h3>
-                                        <p className="text-sm text-muted-foreground">
-                                            {i === 1 ? 'Running' : i === 2 ? 'Stopped' : 'Starting'}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                                    <span>3 instances</span>
-                                    <span>•</span>
-                                    <span>standard-1</span>
-                                </div>
-                            </div>
-                        ))}
+                {currentPage === 'topology' && (
+                    <div className="flex flex-col gap-6">
+                        <div className="flex flex-col gap-2">
+                            <h1 className="text-3xl font-bold tracking-tight">Topology</h1>
+                            <p className="text-muted-foreground">
+                                Visualize container dependencies and bindings
+                            </p>
+                        </div>
+                        <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
+                            <GitBranch className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                            <p>Topology visualization coming in Phase 5</p>
+                        </div>
                     </div>
+                )}
 
-                    {/* Status indicator */}
-                    <div className="rounded-lg border bg-muted/50 p-4">
-                        <p className="text-sm text-muted-foreground">
-                            Theme: <span className="font-medium text-foreground">{theme}</span>
-                            {theme === 'system' && (
-                                <span className="ml-2">
-                                    (resolved to <span className="font-medium text-foreground">{resolvedTheme}</span>)
-                                </span>
-                            )}
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                            🚧 Phase 1 Foundation Complete — Ready for Phase 2 implementation
-                        </p>
+                {currentPage === 'metrics' && (
+                    <div className="flex flex-col gap-6">
+                        <div className="flex flex-col gap-2">
+                            <h1 className="text-3xl font-bold tracking-tight">Metrics</h1>
+                            <p className="text-muted-foreground">
+                                Monitor container performance and resource usage
+                            </p>
+                        </div>
+                        <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
+                            <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                            <p>Metrics dashboard coming in Phase 8</p>
+                        </div>
                     </div>
-                </div>
+                )}
+
+                {currentPage === 'jobs' && (
+                    <div className="flex flex-col gap-6">
+                        <div className="flex flex-col gap-2">
+                            <h1 className="text-3xl font-bold tracking-tight">Job History</h1>
+                            <p className="text-muted-foreground">
+                                View operation history and audit log
+                            </p>
+                        </div>
+                        <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
+                            <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                            <p>Job history coming in Phase 11</p>
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     )

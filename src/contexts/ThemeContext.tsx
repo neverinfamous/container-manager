@@ -1,14 +1,15 @@
-import { createContext, useContext, useEffect, useState, useMemo, type ReactNode } from 'react'
+import { createContext, useEffect, useState, useMemo, type ReactNode, type Context } from 'react'
 
-type Theme = 'dark' | 'light' | 'system'
+export type Theme = 'dark' | 'light' | 'system'
 
-interface ThemeContextType {
+export interface ThemeContextType {
     theme: Theme
     setTheme: (theme: Theme) => void
     resolvedTheme: 'dark' | 'light'
 }
 
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
+// eslint-disable-next-line react-refresh/only-export-components
+export const ThemeContext: Context<ThemeContextType | undefined> = createContext<ThemeContextType | undefined>(undefined)
 
 function getSystemTheme(): 'dark' | 'light' {
     if (typeof window === 'undefined') return 'light'
@@ -66,12 +67,4 @@ export function ThemeProvider({ children }: { children: ReactNode }): ReactNode 
             {children}
         </ThemeContext.Provider>
     )
-}
-
-export function useTheme(): ThemeContextType {
-    const context = useContext(ThemeContext)
-    if (context === undefined) {
-        throw new Error('useTheme must be used within a ThemeProvider')
-    }
-    return context
 }
