@@ -11,6 +11,7 @@ import {
     Clock,
     Cpu,
     HardDrive,
+    Terminal,
 } from 'lucide-react'
 
 interface ContainerCardProps {
@@ -28,6 +29,7 @@ interface ContainerCardProps {
     onViewInstances?: () => void
     onCopyName?: () => void
     onConfigure?: () => void
+    onViewLogs?: () => void
 }
 
 const statusColors: Record<ContainerStatus, string> = {
@@ -63,6 +65,7 @@ export function ContainerCard({
     onViewInstances,
     onCopyName,
     onConfigure,
+    onViewLogs,
 }: ContainerCardProps): React.ReactNode {
     const specs = INSTANCE_SPECS[instanceType]
 
@@ -179,6 +182,14 @@ export function ContainerCard({
                     >
                         <Server className="h-4 w-4" />
                         Instances
+                    </button>
+
+                    <button
+                        onClick={onViewLogs}
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                        title="View Logs"
+                    >
+                        <Terminal className="h-4 w-4" />
                     </button>
 
                     <button

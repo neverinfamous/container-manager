@@ -118,11 +118,37 @@ async function handleApiRequest(
             return handleValidateConfig(body)
         }
 
+
         const configDiffMatch = /^\/api\/containers\/([^/]+)\/config\/diff$/.exec(path)
         if (configDiffMatch?.[1] !== undefined && request.method === 'POST') {
             const name = decodeURIComponent(configDiffMatch[1])
             const body = await request.json() as Record<string, unknown>
             return await handleConfigDiff(name, body)
+        }
+
+        // Logs routes
+        const logsMatch = /^\/api\/containers\/([^/]+)\/logs$/.exec(path)
+        if (logsMatch?.[1] !== undefined) {
+            const name = decodeURIComponent(logsMatch[1])
+            if (request.method === 'GET') {
+                return handleGetLogs(name)
+            }
+            if (request.method === 'DELETE') {
+                return handleClearLogs(name)
+            }
+        }
+
+        const logsDownloadMatch = /^\/api\/containers\/([^/]+)\/logs\/download$/.exec(path)
+        if (logsDownloadMatch?.[1] !== undefined && request.method === 'GET') {
+            const name = decodeURIComponent(logsDownloadMatch[1])
+            return handleDownloadLogs(name)
+        }
+
+        const httpTestMatch = /^\/api\/containers\/([^/]+)\/http-test$/.exec(path)
+        if (httpTestMatch?.[1] !== undefined && request.method === 'POST') {
+            const name = decodeURIComponent(httpTestMatch[1])
+            const body = await request.json() as Record<string, unknown>
+            return await handleHttpTest(name, body)
         }
 
         // Job history
@@ -515,6 +541,108 @@ async function handleConfigDiff(
     }
 
     return jsonResponse({ changes })
+}
+
+/**
+ * Get logs for container (demo data)
+ */
+function handleGetLogs(name: string): Response {
+    const now = Date.now()
+    const logs = [
+        { id: '1', timestamp: new Date(now - 60000).toISOString(), level: 'info', message: `Container ${name} started successfully`, source: 'system', instanceId: 'inst-abc123' },
+        { id: '2', timestamp: new Date(now - 55000).toISOString(), level: 'info', message: 'Listening on port 8080', source: 'stdout', instanceId: 'inst-abc123' },
+        { id: '3', timestamp: new Date(now - 50000).toISOString(), level: 'debug', message: 'Health check endpoint registered at /health', source: 'stdout', instanceId: 'inst-abc123' },
+        { id: '4', timestamp: new Date(now - 45000).toISOString(), level: 'info', message: 'Database connection established', source: 'stdout', instanceId: 'inst-abc123' },
+        { id: '5', timestamp: new Date(now - 40000).toISOString(), level: 'warn', message: 'Cache miss for key: user_session_123', source: 'stderr', instanceId: 'inst-abc123' },
+        { id: '6', timestamp: new Date(now - 35000).toISOString(), level: 'info', message: 'Processing incoming request: GET /api/users', source: 'stdout', instanceId: 'inst-abc123' },
+        { id: '7', timestamp: new Date(now - 30000).toISOString(), level: 'debug', message: 'Query execution time: 12ms', source: 'stdout', instanceId: 'inst-abc123' },
+        { id: '8', timestamp: new Date(now - 25000).toISOString(), level: 'info', message: 'Response sent: 200 OK (156 bytes)', source: 'stdout', instanceId: 'inst-abc123' },
+        { id: '9', timestamp: new Date(now - 20000).toISOString(), level: 'error', message: 'Failed to connect to external API: timeout after 30s', source: 'stderr', instanceId: 'inst-def456' },
+        { id: '10', timestamp: new Date(now - 15000).toISOString(), level: 'warn', message: 'Retrying external API connection (attempt 2/3)', source: 'stderr', instanceId: 'inst-def456' },
+        { id: '11', timestamp: new Date(now - 10000).toISOString(), level: 'info', message: 'External API connection restored', source: 'stdout', instanceId: 'inst-def456' },
+        { id: '12', timestamp: new Date(now - 5000).toISOString(), level: 'info', message: 'Health check passed', source: 'system', instanceId: 'inst-abc123' },
+    ]
+
+    return jsonResponse({ logs, hasMore: false, cursor: undefined })
+}
+
+/**
+ * Clear logs for container
+ */
+function handleClearLogs(name: string): Response {
+     
+    console.log(`Clearing logs for container: ${name}`)
+    return jsonResponse({ success: true })
+}
+
+/**
+ * Download logs as text file
+ */
+function handleDownloadLogs(name: string): Response {
+    const logs = `[2024-12-24 12:00:00] [INFO] Container ${name} started
+[2024-12-24 12:00:01] [INFO] Listening on port 8080
+[2024-12-24 12:00:02] [DEBUG] Health check registered
+[2024-12-24 12:00:05] [INFO] Database connected
+[2024-12-24 12:01:00] [WARN] Cache miss
+[2024-12-24 12:01:15] [ERROR] External API timeout
+[2024-12-24 12:01:30] [INFO] Connection restored`
+
+    return new Response(logs, {
+        headers: {
+            'Content-Type': 'text/plain',
+            'Content-Disposition': `attachment; filename="${name}-logs.txt"`,
+            ...corsHeaders,
+        },
+    })
+}
+
+/**
+ * Execute HTTP test request (demo)
+ */
+async function handleHttpTest(
+    name: string,
+    request: Record<string, unknown>
+): Promise<Response> {
+     
+    console.log(`HTTP test for ${name}:`, request)
+
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 400))
+
+    const method = request['method'] as string
+    const path = request['path'] as string
+
+    // Demo response based on path
+    let status = 200
+    let body = ''
+
+    if (path === '/health') {
+        body = JSON.stringify({ status: 'healthy', uptime: 86400 }, null, 2)
+    } else if (path.startsWith('/api/')) {
+        body = JSON.stringify({
+            success: true,
+            data: { message: `${method} request to ${path} processed` },
+            timestamp: new Date().toISOString(),
+        }, null, 2)
+    } else if (path === '/404') {
+        status = 404
+        body = JSON.stringify({ error: 'Not found' }, null, 2)
+    } else {
+        body = `Hello from ${name}!\nPath: ${path}\nMethod: ${method}`
+    }
+
+    return jsonResponse({
+        status,
+        statusText: status === 200 ? 'OK' : 'Not Found',
+        headers: {
+            'Content-Type': path.startsWith('/api/') || path === '/health' ? 'application/json' : 'text/plain',
+            'X-Container': name,
+            'X-Response-Time': `${Math.floor(100 + Math.random() * 400)}ms`,
+        },
+        body,
+        duration: Math.floor(100 + Math.random() * 400),
+        size: body.length,
+    })
 }
 
 /**
