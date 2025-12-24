@@ -3,6 +3,7 @@ import { Search, LayoutGrid, List, RefreshCw, Plus } from 'lucide-react'
 import { ContainerCard } from './ContainerCard'
 import { ContainerListView } from './ContainerListView'
 import { InstancesDialog } from './InstancesDialog'
+import { ContainerConfigPanel } from './ContainerConfigPanel'
 import { listContainers, performContainerAction } from '@/services/containerApi'
 import { copyToClipboard } from '@/lib/utils'
 import type { Container } from '@/types/container'
@@ -22,6 +23,7 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
     const [refreshing, setRefreshing] = useState(false)
     const [selectedContainer, setSelectedContainer] = useState<Container | null>(null)
     const [showInstances, setShowInstances] = useState(false)
+    const [showConfig, setShowConfig] = useState(false)
 
     const fetchContainers = useCallback(async (skipCache?: boolean): Promise<void> => {
         try {
@@ -72,6 +74,11 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
 
     const handleCopyName = useCallback(async (name: string): Promise<void> => {
         await copyToClipboard(name)
+    }, [])
+
+    const handleConfigure = useCallback((container: Container): void => {
+        setSelectedContainer(container)
+        setShowConfig(true)
     }, [])
 
     // Filter containers by search query
@@ -185,6 +192,7 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                             onStop={() => void handleStop(container)}
                             onViewInstances={() => handleViewInstances(container)}
                             onCopyName={() => void handleCopyName(container.class.name)}
+                            onConfigure={() => handleConfigure(container)}
                             {...(container.color !== undefined && { color: container.color })}
                             {...(container.class.sleepAfter !== undefined && { sleepAfter: container.class.sleepAfter })}
                         />
@@ -208,6 +216,18 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                         setShowInstances(false)
                         setSelectedContainer(null)
                     }}
+                />
+            )}
+
+            {/* Config panel */}
+            {showConfig && selectedContainer && (
+                <ContainerConfigPanel
+                    container={selectedContainer}
+                    onClose={() => {
+                        setShowConfig(false)
+                        setSelectedContainer(null)
+                    }}
+                    onSaved={() => void fetchContainers(true)}
                 />
             )}
         </div>

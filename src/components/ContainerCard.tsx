@@ -5,7 +5,7 @@ import {
     Play,
     Square,
     RotateCcw,
-    MoreVertical,
+    Settings,
     Copy,
     Server,
     Clock,
@@ -27,6 +27,7 @@ interface ContainerCardProps {
     onStop?: () => void
     onViewInstances?: () => void
     onCopyName?: () => void
+    onConfigure?: () => void
 }
 
 const statusColors: Record<ContainerStatus, string> = {
@@ -61,6 +62,7 @@ export function ContainerCard({
     onStop,
     onViewInstances,
     onCopyName,
+    onConfigure,
 }: ContainerCardProps): React.ReactNode {
     const specs = INSTANCE_SPECS[instanceType]
 
@@ -179,8 +181,12 @@ export function ContainerCard({
                         Instances
                     </button>
 
-                    <button className="p-1.5 rounded-md hover:bg-muted transition-colors">
-                        <MoreVertical className="h-4 w-4" />
+                    <button
+                        onClick={onConfigure}
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                        title="Configure"
+                    >
+                        <Settings className="h-4 w-4" />
                     </button>
                 </div>
             </div>

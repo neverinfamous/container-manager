@@ -99,6 +99,32 @@ async function handleApiRequest(
             return await handleStopInstance(containerName, instanceId, env)
         }
 
+        // Configuration routes
+        const configMatch = /^\/api\/containers\/([^/]+)\/config$/.exec(path)
+        if (configMatch?.[1] !== undefined) {
+            const name = decodeURIComponent(configMatch[1])
+            if (request.method === 'GET') {
+                return handleGetConfig(name)
+            }
+            if (request.method === 'PUT') {
+                const body = await request.json() as Record<string, unknown>
+                return await handleUpdateConfig(name, body, env)
+            }
+        }
+
+        const configValidateMatch = /^\/api\/containers\/([^/]+)\/config\/validate$/.exec(path)
+        if (configValidateMatch?.[1] !== undefined && request.method === 'POST') {
+            const body = await request.json() as Record<string, unknown>
+            return handleValidateConfig(body)
+        }
+
+        const configDiffMatch = /^\/api\/containers\/([^/]+)\/config\/diff$/.exec(path)
+        if (configDiffMatch?.[1] !== undefined && request.method === 'POST') {
+            const name = decodeURIComponent(configDiffMatch[1])
+            const body = await request.json() as Record<string, unknown>
+            return await handleConfigDiff(name, body)
+        }
+
         // Job history
         if (path === '/api/jobs') {
             const result = await env.METADATA.prepare(
@@ -355,6 +381,140 @@ async function processScheduledActions(env: Env): Promise<void> {
     for (const action of result.results) {
         console.log(`Processing scheduled action: ${JSON.stringify(action)}`)
     }
+}
+
+/**
+ * Get container configuration (demo data)
+ */
+function handleGetConfig(name: string): Response {
+    // Demo configuration
+    const config = {
+        name,
+        className: name.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(''),
+        image: `docker.io/myorg/${name}:latest`,
+        instanceType: 'standard-1',
+        maxInstances: 5,
+        envVars: [
+            { key: 'NODE_ENV', value: 'production', isSecret: false, source: 'config' },
+            { key: 'API_KEY', value: '***', isSecret: true, source: 'config' },
+            { key: 'DATABASE_URL', value: 'postgresql://...', isSecret: true, source: 'binding' },
+        ],
+        ports: [{ containerPort: 8080, protocol: 'tcp', isDefault: true }],
+        network: {
+            allowEgress: true,
+            egressRules: [],
+            allowedHosts: ['api.cloudflare.com', '*.amazonaws.com'],
+        },
+        healthCheck: {
+            enabled: true,
+            endpoint: '/health',
+            intervalSeconds: 30,
+            timeoutSeconds: 5,
+            failureThreshold: 3,
+            successThreshold: 1,
+        },
+        sleep: {
+            enabled: true,
+            sleepAfter: '5m',
+            wakeOnRequest: true,
+        },
+        updatedAt: new Date().toISOString(),
+    }
+
+    return jsonResponse({ config })
+}
+
+/**
+ * Update container configuration
+ */
+async function handleUpdateConfig(
+    name: string,
+    updates: Record<string, unknown>,
+    env: Env
+): Promise<Response> {
+    // Log the update
+    await env.METADATA.prepare(`
+        INSERT INTO jobs (container_name, operation, status, started_at, completed_at, duration_ms, metadata)
+        VALUES (?, 'update_config', 'completed', datetime('now'), datetime('now'), 50, ?)
+    `).bind(name, JSON.stringify(updates)).run()
+
+    // Return updated config (in production, merge with existing and return)
+    const config = {
+        name,
+        ...updates,
+        updatedAt: new Date().toISOString(),
+    }
+
+    return jsonResponse({ success: true, config })
+}
+
+/**
+ * Validate configuration
+ */
+function handleValidateConfig(updates: Record<string, unknown>): Response {
+    const errors: { field: string; message: string }[] = []
+    const warnings: { field: string; message: string }[] = []
+
+    // Validate max instances
+    const maxInstances = updates['maxInstances'] as number | undefined
+    if (maxInstances !== undefined) {
+        if (maxInstances < 1) {
+            errors.push({ field: 'maxInstances', message: 'Must be at least 1' })
+        }
+        if (maxInstances > 100) {
+            warnings.push({ field: 'maxInstances', message: 'High instance count may increase costs' })
+        }
+    }
+
+    // Validate env vars
+    const envVars = updates['envVars'] as { key: string; value: string }[] | undefined
+    if (envVars !== undefined) {
+        for (const envVar of envVars) {
+            if (!/^[A-Z_][A-Z0-9_]*$/i.test(envVar.key)) {
+                errors.push({
+                    field: `envVars.${envVar.key}`,
+                    message: 'Invalid key format',
+                })
+            }
+        }
+    }
+
+    return jsonResponse({
+        valid: errors.length === 0,
+        errors,
+        warnings,
+    })
+}
+
+/**
+ * Get configuration diff
+ */
+async function handleConfigDiff(
+    name: string,
+    proposed: Record<string, unknown>
+): Promise<Response> {
+    // Get current config
+    const currentResponse = handleGetConfig(name)
+    const currentData = await currentResponse.json() as { config: Record<string, unknown> }
+    const current = currentData.config
+
+    const changes: { field: string; oldValue: string; newValue: string; type: string }[] = []
+
+    // Compare fields
+    for (const key of Object.keys(proposed)) {
+        const oldValue = JSON.stringify(current[key])
+        const newValue = JSON.stringify(proposed[key])
+        if (oldValue !== newValue) {
+            changes.push({
+                field: key,
+                oldValue: oldValue ?? 'undefined',
+                newValue,
+                type: current[key] === undefined ? 'added' : 'modified',
+            })
+        }
+    }
+
+    return jsonResponse({ changes })
 }
 
 /**
