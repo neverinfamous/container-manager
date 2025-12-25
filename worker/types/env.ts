@@ -11,6 +11,9 @@ export interface Env {
     // Durable Object for async operations
     SNAPSHOT_DO: DurableObjectNamespace
 
+    // Container bindings
+    HELLO_WORLD: DurableObjectNamespace
+
     // Static assets
     ASSETS: Fetcher
 

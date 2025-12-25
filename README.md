@@ -1,76 +1,116 @@
 # Cloudflare Container Manager
 
-A management platform for Cloudflare Containers, designed with the same philosophy and capabilities as [D1 Manager](https://github.com/neverinfamous/d1-manager).
+**Last Updated:** December 25, 2025 | **Version:** 0.1.0
+
+A management platform for Cloudflare Containers with a full-featured UI for lifecycle management, configuration, logs, metrics, scheduling, and snapshots.
 
 [![GitHub](https://img.shields.io/badge/GitHub-neverinfamous/container--manager-blue?logo=github)](https://github.com/neverinfamous/container-manager)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 ![Version](https://img.shields.io/badge/version-v0.1.0-green)
-![Status](https://img.shields.io/badge/status-Development-yellow)
+![Status](https://img.shields.io/badge/status-Beta-orange)
 
-## Tech Stack
-
-**Frontend**: React 19 | Vite 7 | TypeScript 5.9 | Tailwind CSS 4 | shadcn/ui
-
-**Backend**: Cloudflare Workers + D1 + R2 + Durable Objects + Zero Trust
+**[Live Demo](https://container.adamic.tech)** • **[Wiki](https://github.com/neverinfamous/container-manager/wiki)** • **[Changelog](https://github.com/neverinfamous/container-manager/wiki/Changelog)**
 
 ---
 
-## 🎯 Planned Features
+## ⚠️ Current Limitations
 
-### Container Lifecycle Management
-- View all container classes in your account
-- Start, stop, restart, and delete containers
-- View running instances with location and uptime
-- Bulk operations with multi-select
-- Health check configuration
-- Color tags for visual organization
+> [!IMPORTANT]
+> **Cloudflare Containers is in Open Beta** and does not yet have a public management API. This project implements workarounds to provide a management UI despite these limitations.
 
-### Configuration & Environment
-- Environment variable editor with validation
-- Secrets manager (KV/Secrets bindings)
-- Instance type selector (lite → standard-4)
-- Port and timeout configuration
-- Networking and egress rules
-- Config diff viewer
+### No Container API Available
+
+As of December 2025, Cloudflare has not released a public API for:
+- Listing deployed containers
+- Starting/stopping/restarting containers
+- Viewing container status or metrics
+- Managing container instances programmatically
+
+**Workaround:** This project uses a **D1 Shadow Registry** approach where containers are registered manually in a D1 database. The UI reads from this registry rather than directly from Cloudflare's container runtime.
+
+### Windows Wrangler Docker Build Hang
+
+When deploying containers with `wrangler deploy` on Windows, the Docker build step hangs indefinitely due to a [known bug with Docker stdin on Windows](https://github.com/docker/cli/issues/4179).
+
+**Workaround:** Deploy from **WSL2** instead of PowerShell:
+```bash
+# From WSL2 terminal
+cd /mnt/c/Users/yourname/Desktop/container-manager
+npm install  # Reinstall for Linux if node_modules are from Windows
+wrangler deploy
+```
+
+### Container Registry Manual Registration
+
+Since there's no API to discover containers, you must manually register each container in D1 after deploying:
+
+```bash
+wrangler d1 execute container-manager-metadata --remote --command="INSERT INTO containers (name, class_name, worker_name, image, instance_type, max_instances, default_port, status) VALUES ('your-container', 'YourClass', 'your-worker', 'path/to/Dockerfile', 'basic', 3, 8080, 'running');"
+```
+
+---
+
+## 📦 Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Frontend | React 19 • Vite 7 • TypeScript 5.9 |
+| Styling | Tailwind CSS 4 • shadcn/ui |
+| Backend | Cloudflare Workers |
+| Database | Cloudflare D1 (Shadow Registry) |
+| Storage | Cloudflare R2 (Snapshots) |
+| Auth | Cloudflare Zero Trust |
+
+---
+
+## ✨ Features
+
+### Container Lifecycle (UI Ready)
+- 📋 View all registered containers from D1 shadow registry
+- ▶️ Start, stop, restart container controls
+- 🗑️ Delete containers with confirmation
+- 🏷️ Color tags for visual organization
+- 📊 Status indicators (running, stopped, etc.)
+
+### Configuration Management
+- 🔧 Environment variable editor
+- 🔐 Secrets viewer (masked values)
+- ⚙️ Instance type selector
+- 🔄 Config diff viewer
+- 📝 JSON schema validation
 
 ### Logs & Debug Console
-- Real-time log streaming
-- Log level filtering and search
-- HTTP test client for container endpoints
-- Saved request templates
-- Export logs (JSON/CSV)
+- 📜 Real-time log streaming (when API available)
+- 🔍 Log filtering and search
+- 🧪 HTTP test client for container endpoints
+- 💾 Saved request templates
 
 ### Dependency Topology
-- Interactive container dependency graph
-- Container ↔ D1/KV/R2/DO binding visualization
-- Orphan detection
-- Circular dependency alerts
-- Export (PNG/SVG/JSON)
+- 🕸️ Interactive container dependency graph (React Flow)
+- 🔗 Container ↔ D1/KV/R2/DO binding visualization
+- ⚡ Orphan detection (containers without bindings)
 
 ### Snapshots & Rollback
-- Create configuration snapshots
-- Restore from snapshots
-- Auto-snapshot before destructive operations
-- R2-backed snapshot storage
-- Orphaned snapshot detection
+- 📸 Create configuration snapshots
+- ⏪ One-click restore from snapshots
+- 🗄️ R2-backed snapshot storage
+- 🔄 Auto-snapshot before destructive operations
 
 ### Scheduling & Automation
-- Scheduled restart/rebuild/scale actions
-- Cron expression builder
-- Execution history
-- Enable/disable per schedule
+- ⏰ Scheduled restart/rebuild/scale actions
+- 🕐 Cron expression builder with presets
+- 📊 Execution history tracking
+- ✅ Enable/disable per schedule
 
 ### Metrics Dashboard
-- CPU, memory, request metrics
-- Time range selector (24h/7d/30d)
-- Latency percentiles (P50/P90/P99)
-- Instance count over time
+- 📈 CPU, memory, request metrics (placeholder until API available)
+- 📅 Time range selector (24h/7d/30d)
+- 📊 Latency percentiles (P50/P90/P99)
 
-### Webhooks
-- Event-driven notifications
-- Container lifecycle events
-- Schedule execution events
-- HMAC signing support
+### Webhooks & Jobs
+- 🔔 Event-driven notifications
+- 📋 Job history with filtering
+- 🔐 HMAC signing support
 
 ---
 
@@ -80,8 +120,10 @@ A management platform for Cloudflare Containers, designed with the same philosop
 
 - [Node.js](https://nodejs.org/) 18+
 - [Cloudflare account](https://dash.cloudflare.com/sign-up)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for container builds)
+- [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) (required for Windows users)
 
-### Local Development
+### Installation
 
 ```bash
 git clone https://github.com/neverinfamous/container-manager.git
@@ -89,19 +131,116 @@ cd container-manager
 npm install
 ```
 
-**Start the servers (2 terminals):**
+### Local Development
 
-Terminal 1 - Frontend:
+**Terminal 1 - Frontend (Vite):**
 ```bash
 npm run dev
 ```
 
-Terminal 2 - Worker API:
+**Terminal 2 - Worker API (Wrangler):**
 ```bash
 npx wrangler dev --config wrangler.dev.toml --local
 ```
 
 Open **http://localhost:5173**
+
+---
+
+## 🔧 Production Deployment
+
+### 1. Authenticate with Cloudflare
+```bash
+npx wrangler login
+```
+
+### 2. Create D1 Database
+```bash
+npx wrangler d1 create container-manager-metadata
+npx wrangler d1 execute container-manager-metadata --remote --file=worker/schema.sql
+```
+
+### 3. Create R2 Bucket (for snapshots)
+```bash
+npx wrangler r2 bucket create container-manager-snapshots
+```
+
+### 4. Configure wrangler.toml
+```bash
+cp wrangler.toml.example wrangler.toml
+```
+Edit `wrangler.toml` with your `database_id` from step 2.
+
+### 5. Set Secrets
+```bash
+npx wrangler secret put ACCOUNT_ID
+npx wrangler secret put API_KEY
+npx wrangler secret put TEAM_DOMAIN
+npx wrangler secret put POLICY_AUD
+```
+
+### 6. Deploy (from WSL2 on Windows!)
+```bash
+# On Windows, run from WSL2
+cd /mnt/c/Users/yourname/path/to/container-manager
+npm install  # Reinstall for Linux
+wrangler deploy
+```
+
+---
+
+## 🐳 Adding a Container
+
+### 1. Create Container Class
+
+In your worker, create a class extending `Container`:
+
+```typescript
+import { Container } from '@cloudflare/containers'
+
+export class HelloWorld extends Container {
+    override defaultPort = 8080
+    override sleepAfter = '5m'
+}
+```
+
+### 2. Create Dockerfile
+
+```dockerfile
+# containers/hello-world/Dockerfile
+FROM node:20-alpine
+WORKDIR /app
+RUN echo 'require("http").createServer((req,res) => { res.end("Hello!") }).listen(8080)' > server.js
+EXPOSE 8080
+CMD ["node", "server.js"]
+```
+
+### 3. Configure wrangler.toml
+
+```toml
+[[containers]]
+class_name = "HelloWorld"
+image = "./containers/hello-world/Dockerfile"
+max_instances = 3
+
+[[durable_objects.bindings]]
+name = "HELLO_WORLD"
+class_name = "HelloWorld"
+
+[[migrations]]
+tag = "v2_hello_world"
+new_sqlite_classes = ["HelloWorld"]
+```
+
+### 4. Deploy & Register
+
+```bash
+# Deploy (from WSL2 on Windows)
+wrangler deploy
+
+# Register in shadow registry
+wrangler d1 execute container-manager-metadata --remote --command="INSERT INTO containers (name, class_name, worker_name, image, instance_type, max_instances, default_port, status) VALUES ('hello-world', 'HelloWorld', 'container-manager', 'containers/hello-world/Dockerfile', 'basic', 3, 8080, 'running');"
+```
 
 ---
 
@@ -112,56 +251,9 @@ Open **http://localhost:5173**
 | `npm run dev` | Start Vite dev server |
 | `npm run build` | Build for production |
 | `npm run lint` | Run ESLint |
-| `npm run typecheck` | Run TypeScript type checking |
-| `npm run check` | Run both lint and typecheck |
+| `npm run typecheck` | TypeScript type checking |
+| `npm run check` | Run lint + typecheck |
 | `npm run preview` | Preview production build |
-
----
-
-## 🔧 Production Deployment
-
-### 1. Authenticate with Cloudflare
-
-```bash
-npx wrangler login
-```
-
-### 2. Create Metadata Database
-
-```bash
-npx wrangler d1 create container-manager-metadata
-npx wrangler d1 execute container-manager-metadata --remote --file=worker/schema.sql
-```
-
-### 3. Configure Wrangler
-
-```bash
-cp wrangler.toml.example wrangler.toml
-```
-
-Edit `wrangler.toml` with your `database_id` from step 2.
-
-### 4. Set Up R2 Snapshot Bucket (Optional)
-
-```bash
-npx wrangler r2 bucket create container-manager-snapshots
-```
-
-### 5. Set Secrets
-
-```bash
-npx wrangler secret put ACCOUNT_ID
-npx wrangler secret put API_KEY
-npx wrangler secret put TEAM_DOMAIN
-npx wrangler secret put POLICY_AUD
-```
-
-### 6. Deploy
-
-```bash
-npm run build
-npx wrangler deploy
-```
 
 ---
 
@@ -169,26 +261,33 @@ npx wrangler deploy
 
 ```
 container-manager/
-├── src/                    # Frontend source
-│   ├── components/         # React components
-│   ├── contexts/           # React contexts (Theme)
-│   ├── lib/                # Utilities (utils, cache)
+├── src/                    # Frontend (React 19)
+│   ├── components/         # UI components
+│   ├── contexts/           # React contexts
+│   ├── lib/                # Utilities
 │   ├── services/           # API clients
-│   ├── types/              # TypeScript types
-│   ├── App.tsx             # Main app component
-│   ├── main.tsx            # Entry point
-│   └── index.css           # Tailwind CSS
-├── worker/                 # Backend source
-│   ├── routes/             # API route handlers
-│   ├── types/              # Worker types
-│   ├── utils/              # Worker utilities
-│   ├── durable-objects/    # Durable Object classes
-│   ├── index.ts            # Worker entry point
-│   └── schema.sql          # D1 database schema
-├── wrangler.toml.example   # Production config template
-├── wrangler.dev.toml       # Local development config
-└── package.json
+│   └── types/              # TypeScript types
+├── worker/                 # Backend (Workers)
+│   ├── routes/             # API handlers
+│   ├── durable-objects/    # DO classes
+│   ├── index.ts            # Entry point
+│   └── schema.sql          # D1 schema
+├── containers/             # Container Dockerfiles
+│   └── hello-world/        # Test container
+└── wrangler.toml           # Production config
 ```
+
+---
+
+## 🔮 Roadmap
+
+When Cloudflare releases a Container Management API, this project will:
+
+- [ ] Replace D1 shadow registry with live API queries
+- [ ] Enable real-time container status updates
+- [ ] Show actual metrics from container runtime
+- [ ] Support direct start/stop/restart operations
+- [ ] Enable log streaming from running containers
 
 ---
 

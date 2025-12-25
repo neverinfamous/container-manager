@@ -1,0 +1,9 @@
+# Ignore everything not needed for Docker build
+node_modules
+.git
+dist
+*.log
+.wrangler
+.vscode
+.idea
+*.md

@@ -1,4 +1,14 @@
 import { type Env } from './types/env'
+import { Container } from '@cloudflare/containers'
+
+/**
+ * HelloWorld container for testing
+ * A simple Node.js HTTP server running in a Cloudflare Container
+ */
+export class HelloWorld extends Container {
+    override defaultPort = 8080
+    override sleepAfter = '5m'
+}
 
 /**
  * Cloudflare Container Manager Worker

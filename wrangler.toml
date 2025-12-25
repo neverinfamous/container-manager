@@ -38,8 +38,21 @@ binding = "SNAPSHOT_BUCKET"
 bucket_name = "container-manager-snapshots"
 
 # ============================================
+# CONTAINERS (Real container for testing)
+# ============================================
+[[containers]]
+class_name = "HelloWorld"
+image = "./containers/hello-world/Dockerfile"
+max_instances = 3
+
+# ============================================
 # DURABLE OBJECTS
 # ============================================
+# HelloWorld container binding
+[[durable_objects.bindings]]
+name = "HELLO_WORLD"
+class_name = "HelloWorld"
+
 # Durable Object for async snapshot operations
 [[durable_objects.bindings]]
 name = "SNAPSHOT_DO"
@@ -49,6 +62,10 @@ script_name = "container-manager"
 [[migrations]]
 tag = "v1_snapshot_do"
 new_classes = ["SnapshotDO"]
+
+[[migrations]]
+tag = "v2_hello_world"
+new_sqlite_classes = ["HelloWorld"]
 
 # ============================================
 # SCHEDULED ACTIONS
