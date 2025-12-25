@@ -3,6 +3,7 @@ import { useTheme } from './hooks/useTheme'
 import { ContainerGrid } from './components/ContainerGrid'
 import { DependencyGraph } from './components/DependencyGraph'
 import { MetricsDashboard } from './components/MetricsDashboard'
+import { JobsPanel } from './components/JobsPanel'
 import { useState } from 'react'
 
 type Page = 'containers' | 'topology' | 'metrics' | 'jobs'
@@ -116,18 +117,7 @@ function App(): React.ReactNode {
                 )}
 
                 {currentPage === 'jobs' && (
-                    <div className="flex flex-col gap-6">
-                        <div className="flex flex-col gap-2">
-                            <h1 className="text-3xl font-bold tracking-tight">Job History</h1>
-                            <p className="text-muted-foreground">
-                                View operation history and audit log
-                            </p>
-                        </div>
-                        <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
-                            <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                            <p>Job history coming in Phase 11</p>
-                        </div>
-                    </div>
+                    <JobsPanel />
                 )}
             </main>
         </div>

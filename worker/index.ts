@@ -178,20 +178,59 @@ async function handleApiRequest(
             return handleContainerMetrics(name, range)
         }
 
-        // Job history
-        if (path === '/api/jobs') {
-            const result = await env.METADATA.prepare(
-                'SELECT * FROM jobs ORDER BY started_at DESC LIMIT 50'
-            ).all()
-            return jsonResponse({ jobs: result.results })
+        // Jobs routes
+        if (path === '/api/jobs' && request.method === 'GET') {
+            return handleGetJobs()
         }
 
-        // Webhooks
-        if (path === '/api/webhooks') {
-            const result = await env.METADATA.prepare(
-                'SELECT * FROM webhooks ORDER BY created_at DESC'
-            ).all()
-            return jsonResponse({ webhooks: result.results })
+        if (path === '/api/jobs/stats' && request.method === 'GET') {
+            return handleJobStats()
+        }
+
+        const jobMatch = /^\/api\/jobs\/([^/]+)$/.exec(path)
+        if (jobMatch?.[1] !== undefined && request.method === 'GET') {
+            return handleGetJob(jobMatch[1])
+        }
+
+        const jobCancelMatch = /^\/api\/jobs\/([^/]+)\/cancel$/.exec(path)
+        if (jobCancelMatch?.[1] !== undefined && request.method === 'POST') {
+            return handleCancelJob(jobCancelMatch[1])
+        }
+
+        const jobRetryMatch = /^\/api\/jobs\/([^/]+)\/retry$/.exec(path)
+        if (jobRetryMatch?.[1] !== undefined && request.method === 'POST') {
+            return handleRetryJob(jobRetryMatch[1])
+        }
+
+        // Webhooks routes
+        if (path === '/api/webhooks' && request.method === 'GET') {
+            return handleGetWebhooks()
+        }
+
+        if (path === '/api/webhooks' && request.method === 'POST') {
+            const body = await request.json() as Record<string, unknown>
+            return handleCreateWebhook(body)
+        }
+
+        const webhookMatch = /^\/api\/webhooks\/([^/]+)$/.exec(path)
+        if (webhookMatch?.[1] !== undefined) {
+            if (request.method === 'PUT') {
+                const body = await request.json() as Record<string, unknown>
+                return handleUpdateWebhook(webhookMatch[1], body)
+            }
+            if (request.method === 'DELETE') {
+                return handleDeleteWebhook(webhookMatch[1])
+            }
+        }
+
+        const webhookDeliveriesMatch = /^\/api\/webhooks\/([^/]+)\/deliveries$/.exec(path)
+        if (webhookDeliveriesMatch?.[1] !== undefined && request.method === 'GET') {
+            return handleGetWebhookDeliveries(webhookDeliveriesMatch[1])
+        }
+
+        const webhookTestMatch = /^\/api\/webhooks\/([^/]+)\/test$/.exec(path)
+        if (webhookTestMatch?.[1] !== undefined && request.method === 'POST') {
+            return handleTestWebhook(webhookTestMatch[1])
         }
 
         // Migrations status
@@ -837,6 +876,203 @@ function handleContainerMetrics(name: string, range: string): Response {
             instances: { total: 3, running: 2, sleeping: 1, errored: 0 },
         },
     })
+}
+
+// Mock jobs data
+const mockJobs = [
+    {
+        id: 'job-1',
+        name: 'Container Health Check',
+        description: 'Periodic health check for all containers',
+        status: 'completed',
+        trigger: 'scheduled',
+        containerName: 'api-gateway',
+        startedAt: new Date(Date.now() - 300000).toISOString(),
+        completedAt: new Date(Date.now() - 295000).toISOString(),
+        duration: 5000,
+        output: 'All containers healthy',
+    },
+    {
+        id: 'job-2',
+        name: 'Log Rotation',
+        description: 'Rotate and archive container logs',
+        status: 'running',
+        trigger: 'scheduled',
+        startedAt: new Date(Date.now() - 60000).toISOString(),
+    },
+    {
+        id: 'job-3',
+        name: 'Backup Database',
+        description: 'Scheduled database backup',
+        status: 'failed',
+        trigger: 'scheduled',
+        containerName: 'database',
+        startedAt: new Date(Date.now() - 600000).toISOString(),
+        completedAt: new Date(Date.now() - 590000).toISOString(),
+        duration: 10000,
+        error: 'Connection timeout after 10s',
+    },
+    {
+        id: 'job-4',
+        name: 'Scale Up Event',
+        description: 'Auto-scaling triggered by high load',
+        status: 'completed',
+        trigger: 'container_event',
+        containerName: 'user-service',
+        startedAt: new Date(Date.now() - 1800000).toISOString(),
+        completedAt: new Date(Date.now() - 1797000).toISOString(),
+        duration: 3000,
+        output: 'Scaled from 2 to 4 instances',
+    },
+    {
+        id: 'job-5',
+        name: 'Manual Deploy',
+        description: 'Manual deployment triggered by user',
+        status: 'pending',
+        trigger: 'manual',
+        containerName: 'auth-service',
+        startedAt: new Date().toISOString(),
+    },
+]
+
+function handleGetJobs(): Response {
+    return jsonResponse({
+        jobs: mockJobs,
+        total: mockJobs.length,
+        page: 1,
+        pageSize: 50,
+    })
+}
+
+function handleJobStats(): Response {
+    return jsonResponse({
+        total: mockJobs.length,
+        pending: mockJobs.filter(j => j.status === 'pending').length,
+        running: mockJobs.filter(j => j.status === 'running').length,
+        completed: mockJobs.filter(j => j.status === 'completed').length,
+        failed: mockJobs.filter(j => j.status === 'failed').length,
+        averageDuration: 6000,
+    })
+}
+
+function handleGetJob(id: string): Response {
+    const job = mockJobs.find(j => j.id === id)
+    if (!job) {
+        return jsonResponse({ error: 'Job not found' }, 404)
+    }
+    return jsonResponse(job)
+}
+
+function handleCancelJob(id: string): Response {
+    return jsonResponse({ success: true, jobId: id })
+}
+
+function handleRetryJob(id: string): Response {
+    return jsonResponse({
+        ...mockJobs[0],
+        id: `${id}-retry`,
+        status: 'pending',
+        startedAt: new Date().toISOString(),
+    })
+}
+
+// Mock webhooks data
+const mockWebhooks = [
+    {
+        id: 'webhook-1',
+        name: 'Slack Notifications',
+        url: 'https://hooks.slack.com/services/xxx/yyy/zzz',
+        events: ['container.error', 'job.failed'],
+        enabled: true,
+        createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000).toISOString(),
+    },
+    {
+        id: 'webhook-2',
+        name: 'PagerDuty',
+        url: 'https://events.pagerduty.com/v2/enqueue',
+        events: ['container.error'],
+        enabled: true,
+        createdAt: new Date(Date.now() - 86400000 * 14).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    },
+    {
+        id: 'webhook-3',
+        name: 'Analytics',
+        url: 'https://analytics.example.com/events',
+        events: ['container.started', 'container.stopped', 'container.scaled'],
+        enabled: false,
+        createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    },
+]
+
+function handleGetWebhooks(): Response {
+    return jsonResponse({
+        webhooks: mockWebhooks,
+        total: mockWebhooks.length,
+    })
+}
+
+function handleCreateWebhook(_body: unknown): Response {
+    return jsonResponse({
+        id: `webhook-${Date.now()}`,
+        ...(_body as object),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    })
+}
+
+function handleUpdateWebhook(id: string, _body: unknown): Response {
+    const webhook = mockWebhooks.find(w => w.id === id)
+    if (!webhook) {
+        return jsonResponse({ error: 'Webhook not found' }, 404)
+    }
+    return jsonResponse({
+        ...webhook,
+        ...(_body as object),
+        updatedAt: new Date().toISOString(),
+    })
+}
+
+function handleDeleteWebhook(id: string): Response {
+    return jsonResponse({ success: true, webhookId: id })
+}
+
+function handleGetWebhookDeliveries(webhookId: string): Response {
+    return jsonResponse({
+        deliveries: [
+            {
+                id: 'delivery-1',
+                webhookId,
+                event: 'container.error',
+                status: 'delivered',
+                requestBody: '{"event":"container.error","container":"api-gateway"}',
+                responseStatus: 200,
+                attemptCount: 1,
+                lastAttemptAt: new Date(Date.now() - 3600000).toISOString(),
+                duration: 250,
+            },
+            {
+                id: 'delivery-2',
+                webhookId,
+                event: 'job.failed',
+                status: 'failed',
+                requestBody: '{"event":"job.failed","job":"backup"}',
+                responseStatus: 500,
+                responseBody: 'Internal Server Error',
+                attemptCount: 3,
+                lastAttemptAt: new Date(Date.now() - 7200000).toISOString(),
+                error: 'Max retries exceeded',
+                duration: 1500,
+            },
+        ],
+        total: 2,
+    })
+}
+
+function handleTestWebhook(id: string): Response {
+    return jsonResponse({ success: true, webhookId: id })
 }
 
 /**
