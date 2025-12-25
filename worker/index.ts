@@ -208,11 +208,20 @@ async function handleApiRequest(
             return await handleListContainers(env)
         }
 
+        // Register a new container
+        if (path === '/api/containers/register' && request.method === 'POST') {
+            const body = await request.json() as Record<string, unknown>
+            return await handleRegisterContainer(env, body)
+        }
+
         const containerMatch = /^\/api\/containers\/([^/]+)$/.exec(path)
         if (containerMatch?.[1] !== undefined) {
             const name = decodeURIComponent(containerMatch[1])
             if (request.method === 'GET') {
                 return await handleGetContainer(name, env)
+            }
+            if (request.method === 'DELETE') {
+                return await handleDeleteContainer(env, name)
             }
         }
 
@@ -493,8 +502,8 @@ async function handleApiRequest(
 
 /**
  * List all containers
- * NOTE: Cloudflare Containers API is limited. This uses demo data.
- * In production, this would call Cloudflare API to list Workers with container bindings.
+ * Queries registered containers from D1 database.
+ * Register containers via POST /api/containers/register
  */
 async function handleListContainers(env: Env): Promise<Response> {
     // Get colors from metadata
@@ -507,19 +516,127 @@ async function handleListContainers(env: Env): Promise<Response> {
         colorMap.set(row.container_name, row.color)
     }
 
-    // No containers are configured yet.
-    // Containers must be defined in wrangler.toml with [[containers]] sections.
-    // When you add real containers, this function should query them from the 
-    // Cloudflare Containers API or from a D1 table that tracks container configuration.
-    const containers: unknown[] = []
+    // Query registered containers from D1
+    interface ContainerRow {
+        name: string
+        class_name: string
+        worker_name: string | null
+        image: string | null
+        instance_type: string
+        max_instances: number
+        default_port: number
+        sleep_after: string | null
+        status: string
+        created_at: string
+        modified_at: string
+        metadata: string | null
+    }
+
+    const result = await env.METADATA.prepare(
+        'SELECT * FROM containers ORDER BY name'
+    ).all<ContainerRow>()
+
+    const containers = (result.results ?? []).map(row => ({
+        class: {
+            name: row.name,
+            className: row.class_name,
+            workerName: row.worker_name,
+            image: row.image,
+            instanceType: row.instance_type,
+            maxInstances: row.max_instances,
+            defaultPort: row.default_port,
+            sleepAfter: row.sleep_after,
+            createdAt: row.created_at,
+            modifiedAt: row.modified_at,
+        },
+        instances: [], // Instance data would come from container runtime
+        status: row.status,
+        color: colorMap.get(row.name),
+    }))
 
     return jsonResponse({
         containers,
         total: containers.length,
         message: containers.length === 0
-            ? 'No containers configured. Add container definitions to wrangler.toml to get started.'
+            ? 'No containers registered. Use the "Deploy" button or POST /api/containers/register to add containers.'
             : undefined,
     })
+}
+
+/**
+ * Register a new container
+ */
+interface RegisterContainerBody {
+    name: string
+    className: string
+    workerName?: string
+    image?: string
+    instanceType?: string
+    maxInstances?: number
+    defaultPort?: number
+    sleepAfter?: string
+    status?: string
+}
+
+async function handleRegisterContainer(env: Env, body: unknown): Promise<Response> {
+    const data = body as RegisterContainerBody
+
+    if (!data.name || !data.className) {
+        return jsonResponse({ error: 'name and className are required' }, 400)
+    }
+
+    try {
+        await env.METADATA.prepare(`
+            INSERT INTO containers (name, class_name, worker_name, image, instance_type, max_instances, default_port, sleep_after, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(
+            data.name,
+            data.className,
+            data.workerName ?? null,
+            data.image ?? null,
+            data.instanceType ?? 'standard-1',
+            data.maxInstances ?? 5,
+            data.defaultPort ?? 8080,
+            data.sleepAfter ?? null,
+            data.status ?? 'stopped'
+        ).run()
+
+        return jsonResponse({
+            success: true,
+            container: {
+                name: data.name,
+                className: data.className,
+                workerName: data.workerName,
+                image: data.image,
+                instanceType: data.instanceType ?? 'standard-1',
+                maxInstances: data.maxInstances ?? 5,
+                defaultPort: data.defaultPort ?? 8080,
+                sleepAfter: data.sleepAfter,
+                status: data.status ?? 'stopped',
+            },
+        })
+    } catch (err) {
+        // Handle duplicate name error
+        if (err instanceof Error && err.message.includes('UNIQUE constraint')) {
+            return jsonResponse({ error: 'Container with this name already exists' }, 409)
+        }
+        throw err
+    }
+}
+
+/**
+ * Delete a container registration
+ */
+async function handleDeleteContainer(env: Env, name: string): Promise<Response> {
+    const result = await env.METADATA.prepare(
+        'DELETE FROM containers WHERE name = ?'
+    ).bind(name).run()
+
+    if (result.meta.changes === 0) {
+        return jsonResponse({ error: 'Container not found' }, 404)
+    }
+
+    return jsonResponse({ success: true, containerName: name })
 }
 
 /**
@@ -877,40 +994,28 @@ async function handleHttpTest(
 }
 
 /**
- * Get container topology (demo data)
+ * Get container topology
+ * Returns registered containers and their bindings from D1.
+ * Currently returns empty state since no containers are registered.
  */
 function handleGetTopology(): Response {
-    const nodes = [
-        { id: 'api-gateway', name: 'api-gateway', className: 'ApiGateway', status: 'running', instanceCount: 3, type: 'container' },
-        { id: 'user-service', name: 'user-service', className: 'UserService', status: 'running', instanceCount: 2, type: 'container' },
-        { id: 'auth-service', name: 'auth-service', className: 'AuthService', status: 'running', instanceCount: 2, type: 'container' },
-        { id: 'database', name: 'database', className: 'PostgresDB', status: 'running', instanceCount: 1, type: 'database' },
-        { id: 'cache', name: 'cache', className: 'RedisCache', status: 'running', instanceCount: 1, type: 'service' },
-        { id: 'storage', name: 'storage', className: 'ObjectStorage', status: 'running', instanceCount: 1, type: 'storage' },
-        { id: 'worker', name: 'worker', className: 'BackgroundWorker', status: 'sleeping', instanceCount: 0, type: 'container' },
-    ]
-
-    const edges = [
-        { id: 'e1', source: 'api-gateway', target: 'user-service', bindingType: 'service', bindingName: 'users' },
-        { id: 'e2', source: 'api-gateway', target: 'auth-service', bindingType: 'service', bindingName: 'auth' },
-        { id: 'e3', source: 'user-service', target: 'database', bindingType: 'd1', bindingName: 'USERS_DB' },
-        { id: 'e4', source: 'auth-service', target: 'database', bindingType: 'd1', bindingName: 'AUTH_DB' },
-        { id: 'e5', source: 'user-service', target: 'cache', bindingType: 'kv', bindingName: 'USER_CACHE' },
-        { id: 'e6', source: 'auth-service', target: 'cache', bindingType: 'kv', bindingName: 'SESSION_CACHE' },
-        { id: 'e7', source: 'user-service', target: 'storage', bindingType: 'r2', bindingName: 'AVATARS' },
-        { id: 'e8', source: 'api-gateway', target: 'worker', bindingType: 'queue', bindingName: 'TASKS', animated: true },
-    ]
-
-    return jsonResponse({ nodes, edges })
+    // When containers exist in D1, this should query them and their bindings
+    // For now, returns empty since no containers are configured
+    return jsonResponse({
+        nodes: [],
+        edges: [],
+        message: 'No containers registered. Add containers to see topology.',
+    })
 }
 
 /**
- * Detect orphan containers and issues (demo data)
+ * Detect orphan containers and issues
+ * Returns empty since no containers are configured
  */
 function handleDetectOrphans(): Response {
     return jsonResponse({
-        orphanContainers: ['legacy-worker'],
-        unusedBindings: ['OLD_KV_BINDING'],
+        orphanContainers: [],
+        unusedBindings: [],
         circularDependencies: [],
     })
 }
@@ -941,105 +1046,49 @@ async function handleSavePositions(
 }
 
 /**
- * Generate mock time series data
+ * Handle dashboard metrics
+ * Returns zeros since no containers are registered
  */
-function generateTimeSeries(points: number, baseValue: number, variance: number): { timestamp: string; value: number }[] {
-    const now = Date.now()
-    const interval = 60000 // 1 minute
-    const data: { timestamp: string; value: number }[] = []
-
-    for (let i = points - 1; i >= 0; i--) {
-        const timestamp = new Date(now - i * interval).toISOString()
-        const value = Math.max(0, baseValue + (Math.random() - 0.5) * variance * 2)
-        data.push({ timestamp, value })
-    }
-
-    return data
-}
-
-/**
- * Handle dashboard metrics (demo data)
- */
-function handleDashboardMetrics(range: string): Response {
-    const pointsMap: Record<string, number> = {
-        '1h': 60,
-        '6h': 72,
-        '24h': 96,
-        '7d': 168,
-        '30d': 180,
-    }
-    const points = pointsMap[range] ?? 60
-
+function handleDashboardMetrics(_range: string): Response {
     return jsonResponse({
         aggregated: {
-            totalContainers: 7,
-            runningInstances: 12,
-            cpuUsage: 42.3,
-            memoryUsage: 58.7,
-            requestsPerMinute: 1247,
-            errorsPerMinute: 3,
+            totalContainers: 0,
+            runningInstances: 0,
+            cpuUsage: 0,
+            memoryUsage: 0,
+            requestsPerMinute: 0,
+            errorsPerMinute: 0,
         },
         topContainers: {
-            byCpu: [
-                { name: 'api-gateway', value: 65.2 },
-                { name: 'user-service', value: 48.1 },
-                { name: 'auth-service', value: 35.4 },
-                { name: 'worker', value: 22.8 },
-                { name: 'cache', value: 12.1 },
-            ],
-            byMemory: [
-                { name: 'database', value: 78.5 },
-                { name: 'user-service', value: 62.3 },
-                { name: 'api-gateway', value: 45.2 },
-                { name: 'auth-service', value: 38.9 },
-                { name: 'storage', value: 28.4 },
-            ],
-            byRequests: [
-                { name: 'api-gateway', value: 523 },
-                { name: 'auth-service', value: 312 },
-                { name: 'user-service', value: 245 },
-                { name: 'storage', value: 98 },
-                { name: 'cache', value: 67 },
-            ],
+            byCpu: [],
+            byMemory: [],
+            byRequests: [],
         },
         timeline: {
-            cpu: generateTimeSeries(points, 42, 20),
-            memory: generateTimeSeries(points, 58, 15),
-            requests: generateTimeSeries(points, 20, 10),
+            cpu: [],
+            memory: [],
+            requests: [],
         },
+        message: 'No containers registered. Add containers to see metrics.',
     })
 }
 
 /**
- * Handle container metrics (demo data)
+ * Handle container metrics
+ * Returns empty data since no containers are registered
  */
-function handleContainerMetrics(name: string, range: string): Response {
-    const pointsMap: Record<string, number> = {
-        '1h': 60,
-        '6h': 72,
-        '24h': 96,
-        '7d': 168,
-        '30d': 180,
-    }
-    const points = pointsMap[range] ?? 60
-
+function handleContainerMetrics(name: string, _range: string): Response {
     return jsonResponse({
         container: name,
-        range,
+        range: _range,
         series: {
-            cpu: generateTimeSeries(points, 45, 25),
-            memory: generateTimeSeries(points, 55, 20),
-            requests: generateTimeSeries(points, 15, 8),
-            errors: generateTimeSeries(points, 0.5, 1),
+            cpu: [],
+            memory: [],
+            requests: [],
+            errors: [],
         },
-        current: {
-            containerName: name,
-            timestamp: new Date().toISOString(),
-            cpu: { usage: 45.2, limit: 100 },
-            memory: { used: 268435456, limit: 536870912, percentage: 50 },
-            network: { bytesIn: 1234567, bytesOut: 987654, requestsPerSecond: 15 },
-            instances: { total: 3, running: 2, sleeping: 1, errored: 0 },
-        },
+        current: null,
+        message: 'Container not found or no metrics available.',
     })
 }
 // Job handlers (D1-backed)
@@ -1894,127 +1943,43 @@ async function handleTriggerSchedule(env: Env, id: string): Promise<Response> {
     })
 }
 
-// Image handlers
-function handleGetImageInfo(containerName: string): Response {
+// Image handlers - return empty data since no containers are registered
+function handleGetImageInfo(_containerName: string): Response {
     return jsonResponse({
-        current: {
-            containerName,
-            digest: 'sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4',
-            tag: 'v2.1.0',
-            registry: 'registry.cloudflare.com',
-            repository: `containers/${containerName}`,
-            size: 156274688, // ~149 MB
-            createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-            builtAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-            dockerfileSource: 'github.com/org/repo/Dockerfile',
-            buildArgs: { NODE_ENV: 'production' },
-        },
-        previousVersions: [
-            {
-                digest: 'sha256:b4ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d5',
-                tag: 'v2.0.0',
-                builtAt: new Date(Date.now() - 86400000 * 10).toISOString(),
-            },
-            {
-                digest: 'sha256:c5ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d6',
-                tag: 'v1.9.0',
-                builtAt: new Date(Date.now() - 86400000 * 20).toISOString(),
-            },
-            {
-                digest: 'sha256:d6ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d7',
-                tag: 'v1.8.0',
-                builtAt: new Date(Date.now() - 86400000 * 30).toISOString(),
-            },
-        ],
+        current: null,
+        previousVersions: [],
+        message: 'No image available. Container is not registered.',
     })
 }
 
-function handleGetRollouts(containerName: string): Response {
+function handleGetRollouts(_containerName: string): Response {
     return jsonResponse({
-        rollouts: [
-            {
-                id: 'rollout-1',
-                containerName,
-                fromDigest: 'sha256:b4ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d5',
-                toDigest: 'sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4',
-                toTag: 'v2.1.0',
-                status: 'complete',
-                startedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-                completedAt: new Date(Date.now() - 86400000 * 3 + 45000).toISOString(),
-                duration: 45000,
-                instancesUpdated: 3,
-                instancesTotal: 3,
-                triggeredBy: 'admin',
-            },
-            {
-                id: 'rollout-2',
-                containerName,
-                fromDigest: 'sha256:c5ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d6',
-                toDigest: 'sha256:b4ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d5',
-                toTag: 'v2.0.0',
-                status: 'complete',
-                startedAt: new Date(Date.now() - 86400000 * 10).toISOString(),
-                completedAt: new Date(Date.now() - 86400000 * 10 + 60000).toISOString(),
-                duration: 60000,
-                instancesUpdated: 3,
-                instancesTotal: 3,
-                triggeredBy: 'ci/cd',
-            },
-            {
-                id: 'rollout-3',
-                containerName,
-                toDigest: 'sha256:failed123',
-                toTag: 'v2.0.0-rc1',
-                status: 'failed',
-                startedAt: new Date(Date.now() - 86400000 * 12).toISOString(),
-                completedAt: new Date(Date.now() - 86400000 * 12 + 30000).toISOString(),
-                duration: 30000,
-                instancesUpdated: 1,
-                instancesTotal: 3,
-                triggeredBy: 'ci/cd',
-                error: 'Health check failed on instance 2',
-            },
-        ],
-        total: 3,
+        rollouts: [],
+        total: 0,
+        message: 'No rollout history. Container is not registered.',
     })
 }
 
-function handleGetBuilds(containerName: string): Response {
+function handleGetBuilds(_containerName: string): Response {
     return jsonResponse({
-        builds: [
-            {
-                id: 'build-1',
-                containerName,
-                status: 'complete',
-                digest: 'sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4',
-                tag: 'v2.1.0',
-                startedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-                completedAt: new Date(Date.now() - 86400000 * 3 + 180000).toISOString(),
-                duration: 180000,
-                triggeredBy: 'ci/cd',
-            },
-        ],
-        total: 1,
+        builds: [],
+        total: 0,
+        message: 'No build history. Container is not registered.',
     })
 }
 
 function handleRebuild(containerName: string): Response {
     return jsonResponse({
-        id: `build-${Date.now()}`,
+        error: 'Cannot rebuild. Container is not registered.',
         containerName,
-        status: 'pending',
-        tag: 'latest',
-        startedAt: new Date().toISOString(),
-        triggeredBy: 'manual',
-    })
+    }, 400)
 }
 
 function handleRollback(containerName: string): Response {
     return jsonResponse({
-        success: true,
-        rolloutId: `rollout-${Date.now()}`,
+        error: 'Cannot rollback. Container is not registered.',
         containerName,
-    })
+    }, 400)
 }
 
 /**

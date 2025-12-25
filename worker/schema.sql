@@ -11,6 +11,28 @@ CREATE TABLE IF NOT EXISTS container_colors (
 );
 
 -- ============================================
+-- CONTAINERS (Registered container definitions)
+-- ============================================
+-- Since Cloudflare Containers defined in wrangler.toml aren't queryable via API,
+-- this table stores container metadata that you register for display in the UI.
+CREATE TABLE IF NOT EXISTS containers (
+  name TEXT PRIMARY KEY,
+  class_name TEXT NOT NULL,
+  worker_name TEXT,
+  image TEXT,
+  instance_type TEXT DEFAULT 'standard-1',
+  max_instances INTEGER DEFAULT 5,
+  default_port INTEGER DEFAULT 8080,
+  sleep_after TEXT,
+  status TEXT DEFAULT 'stopped', -- 'running', 'stopped', 'starting', 'error'
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  modified_at TEXT NOT NULL DEFAULT (datetime('now')),
+  metadata TEXT -- JSON blob for additional config
+);
+
+CREATE INDEX IF NOT EXISTS idx_containers_status ON containers(status);
+
+-- ============================================
 -- JOB HISTORY (Audit log)
 -- ============================================
 CREATE TABLE IF NOT EXISTS jobs (
