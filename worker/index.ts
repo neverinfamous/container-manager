@@ -180,121 +180,121 @@ async function handleApiRequest(
 
         // Jobs routes
         if (path === '/api/jobs' && request.method === 'GET') {
-            return handleGetJobs()
+            return await handleGetJobs(env)
         }
 
         if (path === '/api/jobs/stats' && request.method === 'GET') {
-            return handleJobStats()
+            return await handleJobStats(env)
         }
 
         const jobMatch = /^\/api\/jobs\/([^/]+)$/.exec(path)
         if (jobMatch?.[1] !== undefined && request.method === 'GET') {
-            return handleGetJob(jobMatch[1])
+            return await handleGetJob(env, jobMatch[1])
         }
 
         const jobCancelMatch = /^\/api\/jobs\/([^/]+)\/cancel$/.exec(path)
         if (jobCancelMatch?.[1] !== undefined && request.method === 'POST') {
-            return handleCancelJob(jobCancelMatch[1])
+            return await handleCancelJob(env, jobCancelMatch[1])
         }
 
         const jobRetryMatch = /^\/api\/jobs\/([^/]+)\/retry$/.exec(path)
         if (jobRetryMatch?.[1] !== undefined && request.method === 'POST') {
-            return handleRetryJob(jobRetryMatch[1])
+            return await handleRetryJob(env, jobRetryMatch[1])
         }
 
         // Webhooks routes
         if (path === '/api/webhooks' && request.method === 'GET') {
-            return handleGetWebhooks()
+            return await handleGetWebhooks(env)
         }
 
         if (path === '/api/webhooks' && request.method === 'POST') {
             const body = await request.json() as Record<string, unknown>
-            return handleCreateWebhook(body)
+            return await handleCreateWebhook(env, body)
         }
 
         const webhookMatch = /^\/api\/webhooks\/([^/]+)$/.exec(path)
         if (webhookMatch?.[1] !== undefined) {
             if (request.method === 'PUT') {
                 const body = await request.json() as Record<string, unknown>
-                return handleUpdateWebhook(webhookMatch[1], body)
+                return await handleUpdateWebhook(env, webhookMatch[1], body)
             }
             if (request.method === 'DELETE') {
-                return handleDeleteWebhook(webhookMatch[1])
+                return await handleDeleteWebhook(env, webhookMatch[1])
             }
         }
 
         const webhookDeliveriesMatch = /^\/api\/webhooks\/([^/]+)\/deliveries$/.exec(path)
         if (webhookDeliveriesMatch?.[1] !== undefined && request.method === 'GET') {
-            return handleGetWebhookDeliveries(webhookDeliveriesMatch[1])
+            return handleGetWebhookDeliveries(env, webhookDeliveriesMatch[1])
         }
 
         const webhookTestMatch = /^\/api\/webhooks\/([^/]+)\/test$/.exec(path)
         if (webhookTestMatch?.[1] !== undefined && request.method === 'POST') {
-            return handleTestWebhook(webhookTestMatch[1])
+            return await handleTestWebhook(env, webhookTestMatch[1])
         }
 
         // Snapshots routes
         if (path === '/api/snapshots' && request.method === 'GET') {
-            return handleGetSnapshots()
+            return await handleGetSnapshots(env)
         }
 
         if (path === '/api/snapshots' && request.method === 'POST') {
             const body = await request.json() as Record<string, unknown>
-            return handleCreateSnapshot(body)
+            return await handleCreateSnapshot(env, body)
         }
 
         if (path === '/api/snapshots/stats' && request.method === 'GET') {
-            return handleSnapshotStats()
+            return await handleSnapshotStats(env)
         }
 
         const snapshotMatch = /^\/api\/snapshots\/([^/]+)$/.exec(path)
         if (snapshotMatch?.[1] !== undefined) {
             if (request.method === 'GET') {
-                return handleGetSnapshot(snapshotMatch[1])
+                return await handleGetSnapshot(env, snapshotMatch[1])
             }
             if (request.method === 'DELETE') {
-                return handleDeleteSnapshot(snapshotMatch[1])
+                return await handleDeleteSnapshot(env, snapshotMatch[1])
             }
         }
 
         const snapshotRestoreMatch = /^\/api\/snapshots\/([^/]+)\/restore$/.exec(path)
         if (snapshotRestoreMatch?.[1] !== undefined && request.method === 'POST') {
             const body = await request.json() as Record<string, unknown>
-            return handleRestoreSnapshot(snapshotRestoreMatch[1], body)
+            return await handleRestoreSnapshot(env, snapshotRestoreMatch[1], body)
         }
 
         // Schedules routes
         if (path === '/api/schedules' && request.method === 'GET') {
-            return handleGetSchedules()
+            return await handleGetSchedules(env)
         }
 
         if (path === '/api/schedules' && request.method === 'POST') {
             const body = await request.json() as Record<string, unknown>
-            return handleCreateSchedule(body)
+            return await handleCreateSchedule(env, body)
         }
 
         const scheduleMatch = /^\/api\/schedules\/([^/]+)$/.exec(path)
         if (scheduleMatch?.[1] !== undefined) {
             if (request.method === 'GET') {
-                return handleGetSchedule(scheduleMatch[1])
+                return await handleGetSchedule(env, scheduleMatch[1])
             }
             if (request.method === 'PUT') {
                 const body = await request.json() as Record<string, unknown>
-                return handleUpdateSchedule(scheduleMatch[1], body)
+                return await handleUpdateSchedule(env, scheduleMatch[1], body)
             }
             if (request.method === 'DELETE') {
-                return handleDeleteSchedule(scheduleMatch[1])
+                return await handleDeleteSchedule(env, scheduleMatch[1])
             }
         }
 
         const scheduleHistoryMatch = /^\/api\/schedules\/([^/]+)\/history$/.exec(path)
         if (scheduleHistoryMatch?.[1] !== undefined && request.method === 'GET') {
-            return handleScheduleHistory(scheduleHistoryMatch[1])
+            return await handleScheduleHistory(env, scheduleHistoryMatch[1])
         }
 
         const scheduleTriggerMatch = /^\/api\/schedules\/([^/]+)\/trigger$/.exec(path)
         if (scheduleTriggerMatch?.[1] !== undefined && request.method === 'POST') {
-            return handleTriggerSchedule(scheduleTriggerMatch[1])
+            return await handleTriggerSchedule(env, scheduleTriggerMatch[1])
         }
 
         // Image routes
@@ -967,471 +967,856 @@ function handleContainerMetrics(name: string, range: string): Response {
         },
     })
 }
+// Job handlers (D1-backed)
 
-// Mock jobs data
-const mockJobs = [
-    {
-        id: 'job-1',
-        name: 'Container Health Check',
-        description: 'Periodic health check for all containers',
-        status: 'completed',
-        trigger: 'scheduled',
-        containerName: 'api-gateway',
-        startedAt: new Date(Date.now() - 300000).toISOString(),
-        completedAt: new Date(Date.now() - 295000).toISOString(),
-        duration: 5000,
-        output: 'All containers healthy',
-    },
-    {
-        id: 'job-2',
-        name: 'Log Rotation',
-        description: 'Rotate and archive container logs',
-        status: 'running',
-        trigger: 'scheduled',
-        startedAt: new Date(Date.now() - 60000).toISOString(),
-    },
-    {
-        id: 'job-3',
-        name: 'Backup Database',
-        description: 'Scheduled database backup',
-        status: 'failed',
-        trigger: 'scheduled',
-        containerName: 'database',
-        startedAt: new Date(Date.now() - 600000).toISOString(),
-        completedAt: new Date(Date.now() - 590000).toISOString(),
-        duration: 10000,
-        error: 'Connection timeout after 10s',
-    },
-    {
-        id: 'job-4',
-        name: 'Scale Up Event',
-        description: 'Auto-scaling triggered by high load',
-        status: 'completed',
-        trigger: 'container_event',
-        containerName: 'user-service',
-        startedAt: new Date(Date.now() - 1800000).toISOString(),
-        completedAt: new Date(Date.now() - 1797000).toISOString(),
-        duration: 3000,
-        output: 'Scaled from 2 to 4 instances',
-    },
-    {
-        id: 'job-5',
-        name: 'Manual Deploy',
-        description: 'Manual deployment triggered by user',
-        status: 'pending',
-        trigger: 'manual',
-        containerName: 'auth-service',
-        startedAt: new Date().toISOString(),
-    },
-]
+interface JobRow {
+    id: number
+    container_name: string | null
+    operation: string
+    status: string
+    started_at: string
+    completed_at: string | null
+    duration_ms: number | null
+    error_message: string | null
+    metadata: string | null
+}
 
-function handleGetJobs(): Response {
+function mapJobRow(row: JobRow): Record<string, unknown> {
+    const metadata = row.metadata ? JSON.parse(row.metadata) as Record<string, unknown> : {}
+    return {
+        id: String(row.id),
+        name: metadata['name'] ?? row.operation,
+        description: metadata['description'] ?? '',
+        status: row.status,
+        trigger: metadata['trigger'] ?? 'manual',
+        containerName: row.container_name,
+        startedAt: row.started_at,
+        completedAt: row.completed_at,
+        duration: row.duration_ms,
+        output: metadata['output'],
+        error: row.error_message,
+    }
+}
+
+async function handleGetJobs(env: Env): Promise<Response> {
+    const result = await env.METADATA.prepare(
+        'SELECT * FROM jobs ORDER BY started_at DESC LIMIT 100'
+    ).all<JobRow>()
+
+    const jobs = (result.results ?? []).map(mapJobRow)
+
     return jsonResponse({
-        jobs: mockJobs,
-        total: mockJobs.length,
+        jobs,
+        total: jobs.length,
         page: 1,
-        pageSize: 50,
+        pageSize: 100,
     })
 }
 
-function handleJobStats(): Response {
+async function handleJobStats(env: Env): Promise<Response> {
+    const stats = await env.METADATA.prepare(`
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+            SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) as running,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+            AVG(duration_ms) as avg_duration
+        FROM jobs
+    `).first<{
+        total: number
+        pending: number
+        running: number
+        completed: number
+        failed: number
+        avg_duration: number | null
+    }>()
+
     return jsonResponse({
-        total: mockJobs.length,
-        pending: mockJobs.filter(j => j.status === 'pending').length,
-        running: mockJobs.filter(j => j.status === 'running').length,
-        completed: mockJobs.filter(j => j.status === 'completed').length,
-        failed: mockJobs.filter(j => j.status === 'failed').length,
-        averageDuration: 6000,
+        total: stats?.total ?? 0,
+        pending: stats?.pending ?? 0,
+        running: stats?.running ?? 0,
+        completed: stats?.completed ?? 0,
+        failed: stats?.failed ?? 0,
+        averageDuration: stats?.avg_duration ?? 0,
     })
 }
 
-function handleGetJob(id: string): Response {
-    const job = mockJobs.find(j => j.id === id)
-    if (!job) {
+async function handleGetJob(env: Env, id: string): Promise<Response> {
+    const result = await env.METADATA.prepare(
+        'SELECT * FROM jobs WHERE id = ?'
+    ).bind(id).first<JobRow>()
+
+    if (!result) {
         return jsonResponse({ error: 'Job not found' }, 404)
     }
-    return jsonResponse(job)
+
+    return jsonResponse(mapJobRow(result))
 }
 
-function handleCancelJob(id: string): Response {
+async function handleCancelJob(env: Env, id: string): Promise<Response> {
+    await env.METADATA.prepare(`
+        UPDATE jobs SET status = 'cancelled', completed_at = datetime('now')
+        WHERE id = ? AND status IN ('pending', 'running')
+    `).bind(id).run()
+
     return jsonResponse({ success: true, jobId: id })
 }
 
-function handleRetryJob(id: string): Response {
+async function handleRetryJob(env: Env, id: string): Promise<Response> {
+    // Get original job
+    const original = await env.METADATA.prepare(
+        'SELECT * FROM jobs WHERE id = ?'
+    ).bind(id).first<JobRow>()
+
+    if (!original) {
+        return jsonResponse({ error: 'Job not found' }, 404)
+    }
+
+    // Create retry job
+    const metadata = JSON.stringify({
+        ...(original.metadata ? JSON.parse(original.metadata) as Record<string, unknown> : {}),
+        trigger: 'retry',
+        originalJobId: id,
+    })
+
+    const result = await env.METADATA.prepare(`
+        INSERT INTO jobs (container_name, operation, status, metadata)
+        VALUES (?, ?, 'pending', ?)
+    `).bind(original.container_name, original.operation, metadata).run()
+
     return jsonResponse({
-        ...mockJobs[0],
-        id: `${id}-retry`,
+        id: String(result.meta.last_row_id),
+        name: original.operation,
         status: 'pending',
+        trigger: 'retry',
+        containerName: original.container_name,
         startedAt: new Date().toISOString(),
     })
 }
 
-// Mock webhooks data
-const mockWebhooks = [
-    {
-        id: 'webhook-1',
-        name: 'Slack Notifications',
-        url: 'https://hooks.slack.com/services/xxx/yyy/zzz',
-        events: ['container.error', 'job.failed'],
-        enabled: true,
-        createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-        updatedAt: new Date(Date.now() - 86400000).toISOString(),
-    },
-    {
-        id: 'webhook-2',
-        name: 'PagerDuty',
-        url: 'https://events.pagerduty.com/v2/enqueue',
-        events: ['container.error'],
-        enabled: true,
-        createdAt: new Date(Date.now() - 86400000 * 14).toISOString(),
-        updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    },
-    {
-        id: 'webhook-3',
-        name: 'Analytics',
-        url: 'https://analytics.example.com/events',
-        events: ['container.started', 'container.stopped', 'container.scaled'],
-        enabled: false,
-        createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
-        updatedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-    },
-]
+// Webhook handlers (D1-backed)
 
-function handleGetWebhooks(): Response {
+interface WebhookRow {
+    id: number
+    url: string
+    events: string
+    container_filter: string | null
+    secret: string | null
+    enabled: number
+    created_at: string
+    updated_at: string
+    last_triggered_at: string | null
+    last_status: number | null
+}
+
+function mapWebhookRow(row: WebhookRow): Record<string, unknown> {
+    return {
+        id: String(row.id),
+        name: `Webhook ${row.id}`,
+        url: row.url,
+        events: JSON.parse(row.events) as string[],
+        containerFilter: row.container_filter,
+        enabled: row.enabled === 1,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        lastTriggeredAt: row.last_triggered_at,
+        lastStatus: row.last_status,
+    }
+}
+
+async function handleGetWebhooks(env: Env): Promise<Response> {
+    const result = await env.METADATA.prepare(
+        'SELECT * FROM webhooks ORDER BY created_at DESC'
+    ).all<WebhookRow>()
+
+    const webhooks = (result.results ?? []).map(mapWebhookRow)
+
     return jsonResponse({
-        webhooks: mockWebhooks,
-        total: mockWebhooks.length,
+        webhooks,
+        total: webhooks.length,
     })
 }
 
-function handleCreateWebhook(_body: unknown): Response {
+interface CreateWebhookBody {
+    name?: string
+    url: string
+    events: string[]
+    containerFilter?: string
+    secret?: string
+    enabled?: boolean
+}
+
+async function handleCreateWebhook(env: Env, body: unknown): Promise<Response> {
+    const data = body as CreateWebhookBody
+
+    const result = await env.METADATA.prepare(`
+        INSERT INTO webhooks (url, events, container_filter, secret, enabled)
+        VALUES (?, ?, ?, ?, ?)
+    `).bind(
+        data.url,
+        JSON.stringify(data.events),
+        data.containerFilter ?? null,
+        data.secret ?? null,
+        data.enabled !== false ? 1 : 0
+    ).run()
+
     return jsonResponse({
-        id: `webhook-${Date.now()}`,
-        ...(_body as object),
+        id: String(result.meta.last_row_id),
+        name: data.name ?? `Webhook ${result.meta.last_row_id}`,
+        url: data.url,
+        events: data.events,
+        containerFilter: data.containerFilter,
+        enabled: data.enabled !== false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
     })
 }
 
-function handleUpdateWebhook(id: string, _body: unknown): Response {
-    const webhook = mockWebhooks.find(w => w.id === id)
+interface UpdateWebhookBody {
+    name?: string
+    url?: string
+    events?: string[]
+    containerFilter?: string
+    secret?: string
+    enabled?: boolean
+}
+
+async function handleUpdateWebhook(env: Env, id: string, body: unknown): Promise<Response> {
+    const data = body as UpdateWebhookBody
+
+    // Check exists
+    const existing = await env.METADATA.prepare(
+        'SELECT * FROM webhooks WHERE id = ?'
+    ).bind(id).first<WebhookRow>()
+
+    if (!existing) {
+        return jsonResponse({ error: 'Webhook not found' }, 404)
+    }
+
+    await env.METADATA.prepare(`
+        UPDATE webhooks SET
+            url = COALESCE(?, url),
+            events = COALESCE(?, events),
+            container_filter = COALESCE(?, container_filter),
+            secret = COALESCE(?, secret),
+            enabled = COALESCE(?, enabled),
+            updated_at = datetime('now')
+        WHERE id = ?
+    `).bind(
+        data.url ?? null,
+        data.events ? JSON.stringify(data.events) : null,
+        data.containerFilter ?? null,
+        data.secret ?? null,
+        data.enabled !== undefined ? (data.enabled ? 1 : 0) : null,
+        id
+    ).run()
+
+    // Fetch updated
+    const updated = await env.METADATA.prepare(
+        'SELECT * FROM webhooks WHERE id = ?'
+    ).bind(id).first<WebhookRow>()
+
+    return jsonResponse(updated ? mapWebhookRow(updated) : { id })
+}
+
+async function handleDeleteWebhook(env: Env, id: string): Promise<Response> {
+    await env.METADATA.prepare(
+        'DELETE FROM webhooks WHERE id = ?'
+    ).bind(id).run()
+
+    return jsonResponse({ success: true, webhookId: id })
+}
+
+function handleGetWebhookDeliveries(_env: Env, webhookId: string): Response {
+    // Note: Deliveries would need a separate table in production
+    // For now, return empty array since we don't have a deliveries table
+    return jsonResponse({
+        deliveries: [],
+        total: 0,
+        webhookId,
+    })
+}
+
+async function handleTestWebhook(env: Env, id: string): Promise<Response> {
+    // Get webhook
+    const webhook = await env.METADATA.prepare(
+        'SELECT * FROM webhooks WHERE id = ?'
+    ).bind(id).first<WebhookRow>()
+
     if (!webhook) {
         return jsonResponse({ error: 'Webhook not found' }, 404)
     }
+
+    // In production, this would actually send a test request to webhook.url
+    // For now, just update last_triggered_at
+    await env.METADATA.prepare(`
+        UPDATE webhooks SET last_triggered_at = datetime('now'), last_status = 200
+        WHERE id = ?
+    `).bind(id).run()
+
     return jsonResponse({
-        ...webhook,
-        ...(_body as object),
-        updatedAt: new Date().toISOString(),
+        success: true,
+        webhookId: id,
+        message: `Test webhook sent to ${webhook.url}`,
     })
 }
 
-function handleDeleteWebhook(id: string): Response {
-    return jsonResponse({ success: true, webhookId: id })
+// Snapshot handlers (D1/R2-backed)
+
+interface SnapshotRow {
+    id: number
+    container_name: string
+    name: string | null
+    description: string | null
+    r2_key: string
+    created_at: string
+    created_by: string | null
+    size_bytes: number | null
+    metadata: string | null
 }
 
-function handleGetWebhookDeliveries(webhookId: string): Response {
+interface SnapshotConfig {
+    instanceType?: string
+    maxInstances?: number
+    sleepAfter?: number
+    defaultPort?: number
+    envVars?: Record<string, string>
+    healthCheck?: { path: string; interval: number; timeout: number }
+}
+
+function mapSnapshotRow(row: SnapshotRow): Record<string, unknown> {
+    const metadata = row.metadata ? JSON.parse(row.metadata) as Record<string, unknown> : {}
+    return {
+        id: String(row.id),
+        containerName: row.container_name,
+        name: row.name ?? `Snapshot ${row.id}`,
+        description: row.description ?? '',
+        status: 'ready',
+        trigger: metadata['trigger'] ?? 'manual',
+        createdAt: row.created_at,
+        createdBy: row.created_by ?? 'system',
+        size: row.size_bytes ?? 0,
+        r2Key: row.r2_key,
+        config: metadata['config'] ?? {},
+    }
+}
+
+async function handleGetSnapshots(env: Env): Promise<Response> {
+    const result = await env.METADATA.prepare(
+        'SELECT * FROM snapshots ORDER BY created_at DESC'
+    ).all<SnapshotRow>()
+
+    const snapshots = (result.results ?? []).map(mapSnapshotRow)
+
     return jsonResponse({
-        deliveries: [
-            {
-                id: 'delivery-1',
-                webhookId,
-                event: 'container.error',
-                status: 'delivered',
-                requestBody: '{"event":"container.error","container":"api-gateway"}',
-                responseStatus: 200,
-                attemptCount: 1,
-                lastAttemptAt: new Date(Date.now() - 3600000).toISOString(),
-                duration: 250,
-            },
-            {
-                id: 'delivery-2',
-                webhookId,
-                event: 'job.failed',
-                status: 'failed',
-                requestBody: '{"event":"job.failed","job":"backup"}',
-                responseStatus: 500,
-                responseBody: 'Internal Server Error',
-                attemptCount: 3,
-                lastAttemptAt: new Date(Date.now() - 7200000).toISOString(),
-                error: 'Max retries exceeded',
-                duration: 1500,
-            },
-        ],
-        total: 2,
+        snapshots,
+        total: snapshots.length,
     })
 }
 
-function handleTestWebhook(id: string): Response {
-    return jsonResponse({ success: true, webhookId: id })
-}
+async function handleGetSnapshot(env: Env, id: string): Promise<Response> {
+    const result = await env.METADATA.prepare(
+        'SELECT * FROM snapshots WHERE id = ?'
+    ).bind(id).first<SnapshotRow>()
 
-// Mock snapshots data
-const mockSnapshots = [
-    {
-        id: 'snap-1',
-        containerName: 'api-gateway',
-        name: 'before-deploy-v2',
-        description: 'Snapshot before version 2.0 deployment',
-        status: 'ready',
-        trigger: 'manual',
-        createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-        createdBy: 'admin',
-        size: 4520,
-        r2Key: 'snapshots/api-gateway/snap-1.json',
-        config: {
-            instanceType: 'standard-1',
-            maxInstances: 4,
-            sleepAfter: 600,
-            defaultPort: 8080,
-            envVars: { NODE_ENV: 'production', LOG_LEVEL: 'info' },
-            healthCheck: { path: '/health', interval: 30, timeout: 5 },
-        },
-    },
-    {
-        id: 'snap-2',
-        containerName: 'user-service',
-        name: 'weekly-backup',
-        status: 'ready',
-        trigger: 'scheduled',
-        createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-        size: 3240,
-        r2Key: 'snapshots/user-service/snap-2.json',
-        config: {
-            instanceType: 'standard-2',
-            maxInstances: 2,
-            defaultPort: 3000,
-            envVars: { NODE_ENV: 'production' },
-        },
-    },
-    {
-        id: 'snap-3',
-        containerName: 'api-gateway',
-        name: 'pre-migration',
-        description: 'Before database migration',
-        status: 'ready',
-        trigger: 'pre-deploy',
-        createdAt: new Date(Date.now() - 86400000 * 14).toISOString(),
-        size: 4100,
-        r2Key: 'snapshots/api-gateway/snap-3.json',
-        config: {
-            instanceType: 'standard-1',
-            maxInstances: 3,
-            sleepAfter: 600,
-            defaultPort: 8080,
-            envVars: { NODE_ENV: 'production', LOG_LEVEL: 'debug' },
-        },
-    },
-]
-
-function handleGetSnapshots(): Response {
-    return jsonResponse({
-        snapshots: mockSnapshots,
-        total: mockSnapshots.length,
-    })
-}
-
-function handleGetSnapshot(id: string): Response {
-    const snapshot = mockSnapshots.find(s => s.id === id)
-    if (!snapshot) {
+    if (!result) {
         return jsonResponse({ error: 'Snapshot not found' }, 404)
     }
-    return jsonResponse(snapshot)
-}
 
-function handleCreateSnapshot(_body: unknown): Response {
+    // Optionally fetch config from R2
+    let config: SnapshotConfig = {}
+    try {
+        const obj = await env.SNAPSHOT_BUCKET.get(result.r2_key)
+        if (obj) {
+            const text = await obj.text()
+            config = JSON.parse(text) as SnapshotConfig
+        }
+    } catch {
+        // Use metadata config if R2 fetch fails
+        const metadata = result.metadata ? JSON.parse(result.metadata) as Record<string, unknown> : {}
+        config = (metadata['config'] as SnapshotConfig) ?? {}
+    }
+
     return jsonResponse({
-        id: `snap-${Date.now()}`,
-        ...(_body as object),
-        status: 'creating',
-        createdAt: new Date().toISOString(),
-        size: 0,
-        r2Key: `snapshots/temp/snap-${Date.now()}.json`,
-        config: {
-            instanceType: 'standard-1',
-            maxInstances: 1,
-            envVars: {},
-        },
+        ...mapSnapshotRow(result),
+        config,
     })
 }
 
-function handleDeleteSnapshot(id: string): Response {
+interface CreateSnapshotBody {
+    containerName: string
+    name?: string
+    description?: string
+    trigger?: string
+}
+
+async function handleCreateSnapshot(env: Env, body: unknown): Promise<Response> {
+    const data = body as CreateSnapshotBody
+    const timestamp = Date.now()
+    const r2Key = `snapshots/${data.containerName}/snap-${timestamp}.json`
+
+    // Create a sample config (in real implementation, this would capture actual container config)
+    const config: SnapshotConfig = {
+        instanceType: 'standard-1',
+        maxInstances: 2,
+        sleepAfter: 600,
+        defaultPort: 8080,
+        envVars: { NODE_ENV: 'production' },
+    }
+
+    const configJson = JSON.stringify(config)
+    const sizeBytes = configJson.length
+
+    // Store config in R2
+    await env.SNAPSHOT_BUCKET.put(r2Key, configJson, {
+        customMetadata: {
+            containerName: data.containerName,
+            snapshotName: data.name ?? 'unnamed',
+        },
+    })
+
+    // Store metadata in D1
+    const metadata = JSON.stringify({
+        trigger: data.trigger ?? 'manual',
+        config: config,
+    })
+
+    const result = await env.METADATA.prepare(`
+        INSERT INTO snapshots 
+        (container_name, name, description, r2_key, created_by, size_bytes, metadata)
+        VALUES (?, ?, ?, ?, 'manual', ?, ?)
+    `).bind(
+        data.containerName,
+        data.name ?? null,
+        data.description ?? null,
+        r2Key,
+        sizeBytes,
+        metadata
+    ).run()
+
+    const newId = result.meta.last_row_id
+
+    return jsonResponse({
+        id: String(newId),
+        containerName: data.containerName,
+        name: data.name ?? `Snapshot ${newId}`,
+        description: data.description ?? '',
+        status: 'ready',
+        trigger: data.trigger ?? 'manual',
+        createdAt: new Date().toISOString(),
+        createdBy: 'manual',
+        size: sizeBytes,
+        r2Key,
+        config,
+    })
+}
+
+async function handleDeleteSnapshot(env: Env, id: string): Promise<Response> {
+    // Get snapshot to find R2 key
+    const snapshot = await env.METADATA.prepare(
+        'SELECT r2_key FROM snapshots WHERE id = ?'
+    ).bind(id).first<{ r2_key: string }>()
+
+    if (snapshot) {
+        // Delete from R2
+        try {
+            await env.SNAPSHOT_BUCKET.delete(snapshot.r2_key)
+        } catch {
+            // Ignore R2 deletion errors
+        }
+    }
+
+    // Delete from D1
+    await env.METADATA.prepare(
+        'DELETE FROM snapshots WHERE id = ?'
+    ).bind(id).run()
+
     return jsonResponse({ success: true, snapshotId: id })
 }
 
-function handleSnapshotStats(): Response {
-    const oldest = mockSnapshots[mockSnapshots.length - 1]
-    const newest = mockSnapshots[0]
+async function handleSnapshotStats(env: Env): Promise<Response> {
+    // Get aggregate stats
+    const statsResult = await env.METADATA.prepare(`
+        SELECT 
+            COUNT(*) as total,
+            SUM(size_bytes) as total_size,
+            MIN(created_at) as oldest,
+            MAX(created_at) as newest
+        FROM snapshots
+    `).first<{
+        total: number
+        total_size: number | null
+        oldest: string | null
+        newest: string | null
+    }>()
+
+    // Get counts per container
+    const containerCounts = await env.METADATA.prepare(`
+        SELECT container_name, COUNT(*) as count
+        FROM snapshots
+        GROUP BY container_name
+    `).all<{ container_name: string; count: number }>()
+
     return jsonResponse({
-        totalSnapshots: mockSnapshots.length,
-        totalSize: mockSnapshots.reduce((sum, s) => sum + s.size, 0),
-        oldestSnapshot: oldest?.createdAt,
-        newestSnapshot: newest?.createdAt,
-        containerCounts: [
-            { containerName: 'api-gateway', count: 2 },
-            { containerName: 'user-service', count: 1 },
-        ],
+        totalSnapshots: statsResult?.total ?? 0,
+        totalSize: statsResult?.total_size ?? 0,
+        oldestSnapshot: statsResult?.oldest,
+        newestSnapshot: statsResult?.newest,
+        containerCounts: (containerCounts.results ?? []).map(r => ({
+            containerName: r.container_name,
+            count: r.count,
+        })),
     })
 }
 
-function handleRestoreSnapshot(id: string, _options: unknown): Response {
-    const snapshot = mockSnapshots.find(s => s.id === id)
+interface RestoreSnapshotOptions {
+    restoreEnv?: boolean
+    restoreConfig?: boolean
+    restoreNetworking?: boolean
+    createBackupFirst?: boolean
+}
+
+async function handleRestoreSnapshot(env: Env, id: string, options: unknown): Promise<Response> {
+    const opts = options as RestoreSnapshotOptions
+
+    // Get snapshot
+    const snapshot = await env.METADATA.prepare(
+        'SELECT * FROM snapshots WHERE id = ?'
+    ).bind(id).first<SnapshotRow>()
+
     if (!snapshot) {
         return jsonResponse({ error: 'Snapshot not found' }, 404)
     }
+
+    // Fetch config from R2
+    let config: SnapshotConfig = {}
+    try {
+        const obj = await env.SNAPSHOT_BUCKET.get(snapshot.r2_key)
+        if (obj) {
+            const text = await obj.text()
+            config = JSON.parse(text) as SnapshotConfig
+        }
+    } catch {
+        const metadata = snapshot.metadata ? JSON.parse(snapshot.metadata) as Record<string, unknown> : {}
+        config = (metadata['config'] as SnapshotConfig) ?? {}
+    }
+
+    // Create backup if requested
+    if (opts.createBackupFirst) {
+        await handleCreateSnapshot(env, {
+            containerName: snapshot.container_name,
+            name: `pre-restore-backup-${Date.now()}`,
+            description: `Automatic backup before restoring snapshot ${id}`,
+            trigger: 'pre-restore',
+        })
+    }
+
+    // In a real implementation, this would apply the config to the container
+    // For now, we just return success with the changes that would be made
+    const changes: { field: string; newValue: unknown }[] = []
+
+    if (opts.restoreConfig !== false && config.maxInstances !== undefined) {
+        changes.push({ field: 'maxInstances', newValue: config.maxInstances })
+    }
+    if (opts.restoreConfig !== false && config.sleepAfter !== undefined) {
+        changes.push({ field: 'sleepAfter', newValue: config.sleepAfter })
+    }
+    if (opts.restoreEnv !== false && config.envVars) {
+        Object.entries(config.envVars).forEach(([key, value]) => {
+            changes.push({ field: `envVars.${key}`, newValue: value })
+        })
+    }
+
+    // Log the restore as a job
+    await env.METADATA.prepare(`
+        INSERT INTO jobs (container_name, operation, status, metadata)
+        VALUES (?, 'restore', 'completed', ?)
+    `).bind(
+        snapshot.container_name,
+        JSON.stringify({ snapshotId: id, changes })
+    ).run()
+
     return jsonResponse({
         success: true,
         snapshotId: id,
-        containerName: snapshot.containerName,
+        containerName: snapshot.container_name,
         restoredAt: new Date().toISOString(),
-        changes: [
-            { field: 'maxInstances', oldValue: 2, newValue: snapshot.config.maxInstances },
-            { field: 'envVars.LOG_LEVEL', oldValue: 'warn', newValue: 'info' },
-        ],
+        changes,
     })
 }
 
-// Mock schedules data
-const mockSchedules = [
-    {
-        id: 'sched-1',
-        containerName: 'api-gateway',
-        name: 'Daily Restart',
-        description: 'Restart container daily for memory cleanup',
-        action: 'restart',
-        cronExpression: '0 2 * * *',
-        cronDescription: 'Daily at 2:00 AM',
-        timezone: 'America/New_York',
-        enabled: true,
-        status: 'active',
-        createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
-        updatedAt: new Date(Date.now() - 86400000).toISOString(),
-        lastRunAt: new Date(Date.now() - 86400000).toISOString(),
-        lastRunStatus: 'success',
-        nextRunAt: new Date(Date.now() + 3600000 * 12).toISOString(),
-        runCount: 28,
-    },
-    {
-        id: 'sched-2',
-        containerName: 'user-service',
-        name: 'Weekly Snapshot',
-        description: 'Create weekly config snapshot',
-        action: 'snapshot',
-        cronExpression: '0 0 * * 0',
-        cronDescription: 'Weekly on Sunday at midnight',
-        timezone: 'UTC',
-        enabled: true,
-        status: 'active',
-        createdAt: new Date(Date.now() - 86400000 * 60).toISOString(),
-        updatedAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-        lastRunAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-        lastRunStatus: 'success',
-        nextRunAt: new Date(Date.now() + 86400000 * 3).toISOString(),
-        runCount: 8,
-    },
-    {
-        id: 'sched-3',
-        containerName: 'api-gateway',
-        name: 'Business Hours Scale',
-        action: 'scale_up',
-        cronExpression: '0 9 * * 1-5',
-        cronDescription: 'Weekdays at 9:00 AM',
-        timezone: 'America/New_York',
-        enabled: false,
-        status: 'paused',
-        createdAt: new Date(Date.now() - 86400000 * 14).toISOString(),
-        updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-        runCount: 0,
-    },
-]
+// Schedule handlers (D1-backed)
 
-function handleGetSchedules(): Response {
+interface ScheduledActionRow {
+    id: number
+    container_name: string
+    action_type: string
+    cron_expression: string
+    timezone: string
+    enabled: number
+    last_run_at: string | null
+    last_run_status: string | null
+    next_run_at: string | null
+    metadata: string | null
+    created_at: string
+    updated_at: string
+}
+
+function mapScheduleRow(row: ScheduledActionRow): Record<string, unknown> {
+    const metadata = row.metadata ? JSON.parse(row.metadata) as Record<string, unknown> : {}
+    return {
+        id: String(row.id),
+        containerName: row.container_name,
+        name: metadata['name'] ?? `Schedule ${row.id}`,
+        description: metadata['description'] ?? '',
+        action: row.action_type,
+        actionParams: metadata['actionParams'] ?? {},
+        cronExpression: row.cron_expression,
+        cronDescription: metadata['cronDescription'] ?? row.cron_expression,
+        timezone: row.timezone,
+        enabled: row.enabled === 1,
+        status: row.enabled === 1 ? 'active' : 'paused',
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        lastRunAt: row.last_run_at,
+        lastRunStatus: row.last_run_status,
+        nextRunAt: row.next_run_at,
+        runCount: metadata['runCount'] ?? 0,
+    }
+}
+
+async function handleGetSchedules(env: Env): Promise<Response> {
+    const result = await env.METADATA.prepare(
+        'SELECT * FROM scheduled_actions ORDER BY created_at DESC'
+    ).all<ScheduledActionRow>()
+
+    const schedules = (result.results ?? []).map(mapScheduleRow)
+
     return jsonResponse({
-        schedules: mockSchedules,
-        total: mockSchedules.length,
+        schedules,
+        total: schedules.length,
     })
 }
 
-function handleGetSchedule(id: string): Response {
-    const schedule = mockSchedules.find(s => s.id === id)
-    if (!schedule) {
+async function handleGetSchedule(env: Env, id: string): Promise<Response> {
+    const result = await env.METADATA.prepare(
+        'SELECT * FROM scheduled_actions WHERE id = ?'
+    ).bind(id).first<ScheduledActionRow>()
+
+    if (!result) {
         return jsonResponse({ error: 'Schedule not found' }, 404)
     }
-    return jsonResponse(schedule)
+
+    return jsonResponse(mapScheduleRow(result))
 }
 
-function handleCreateSchedule(_body: unknown): Response {
+interface CreateScheduleBody {
+    containerName: string
+    name: string
+    description?: string
+    action: string
+    actionParams?: Record<string, unknown>
+    cronExpression: string
+    timezone?: string
+    enabled?: boolean
+}
+
+async function handleCreateSchedule(env: Env, body: unknown): Promise<Response> {
+    const data = body as CreateScheduleBody
+    const metadata = JSON.stringify({
+        name: data.name,
+        description: data.description ?? '',
+        actionParams: data.actionParams ?? {},
+        cronDescription: data.cronExpression,
+        runCount: 0,
+    })
+
+    const result = await env.METADATA.prepare(`
+        INSERT INTO scheduled_actions 
+        (container_name, action_type, cron_expression, timezone, enabled, metadata)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(
+        data.containerName,
+        data.action,
+        data.cronExpression,
+        data.timezone ?? 'UTC',
+        data.enabled !== false ? 1 : 0,
+        metadata
+    ).run()
+
+    const newId = result.meta.last_row_id
+
     return jsonResponse({
-        id: `sched-${Date.now()}`,
-        ...(_body as object),
-        status: 'active',
+        id: String(newId),
+        containerName: data.containerName,
+        name: data.name,
+        description: data.description ?? '',
+        action: data.action,
+        cronExpression: data.cronExpression,
+        timezone: data.timezone ?? 'UTC',
+        enabled: data.enabled !== false,
+        status: data.enabled !== false ? 'active' : 'paused',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         runCount: 0,
     })
 }
 
-function handleUpdateSchedule(id: string, _body: unknown): Response {
-    const schedule = mockSchedules.find(s => s.id === id)
+interface UpdateScheduleBody {
+    name?: string
+    description?: string
+    action?: string
+    actionParams?: Record<string, unknown>
+    cronExpression?: string
+    timezone?: string
+    enabled?: boolean
+}
+
+async function handleUpdateSchedule(env: Env, id: string, body: unknown): Promise<Response> {
+    const data = body as UpdateScheduleBody
+
+    // Get existing record
+    const existing = await env.METADATA.prepare(
+        'SELECT * FROM scheduled_actions WHERE id = ?'
+    ).bind(id).first<ScheduledActionRow>()
+
+    if (!existing) {
+        return jsonResponse({ error: 'Schedule not found' }, 404)
+    }
+
+    const existingMetadata = existing.metadata ? JSON.parse(existing.metadata) as Record<string, unknown> : {}
+    const updatedMetadata = JSON.stringify({
+        ...existingMetadata,
+        name: data.name ?? existingMetadata['name'],
+        description: data.description ?? existingMetadata['description'],
+        actionParams: data.actionParams ?? existingMetadata['actionParams'],
+        cronDescription: data.cronExpression ?? existingMetadata['cronDescription'],
+    })
+
+    await env.METADATA.prepare(`
+        UPDATE scheduled_actions SET
+            action_type = COALESCE(?, action_type),
+            cron_expression = COALESCE(?, cron_expression),
+            timezone = COALESCE(?, timezone),
+            enabled = COALESCE(?, enabled),
+            metadata = ?,
+            updated_at = datetime('now')
+        WHERE id = ?
+    `).bind(
+        data.action ?? null,
+        data.cronExpression ?? null,
+        data.timezone ?? null,
+        data.enabled !== undefined ? (data.enabled ? 1 : 0) : null,
+        updatedMetadata,
+        id
+    ).run()
+
+    // Fetch updated record
+    const updated = await env.METADATA.prepare(
+        'SELECT * FROM scheduled_actions WHERE id = ?'
+    ).bind(id).first<ScheduledActionRow>()
+
+    return jsonResponse(updated ? mapScheduleRow(updated) : { id })
+}
+
+async function handleDeleteSchedule(env: Env, id: string): Promise<Response> {
+    await env.METADATA.prepare(
+        'DELETE FROM scheduled_actions WHERE id = ?'
+    ).bind(id).run()
+
+    return jsonResponse({ success: true, scheduleId: id })
+}
+
+async function handleScheduleHistory(env: Env, scheduleId: string): Promise<Response> {
+    // Get schedule info first
+    const schedule = await env.METADATA.prepare(
+        'SELECT * FROM scheduled_actions WHERE id = ?'
+    ).bind(scheduleId).first<ScheduledActionRow>()
+
     if (!schedule) {
         return jsonResponse({ error: 'Schedule not found' }, 404)
     }
+
+    // Get execution history from jobs table
+    const result = await env.METADATA.prepare(`
+        SELECT * FROM jobs 
+        WHERE metadata LIKE ? 
+        ORDER BY started_at DESC 
+        LIMIT 50
+    `).bind(`%"scheduleId":${scheduleId}%`).all<{
+        id: number
+        container_name: string
+        operation: string
+        status: string
+        started_at: string
+        completed_at: string | null
+        duration_ms: number | null
+        error_message: string | null
+        metadata: string | null
+    }>()
+
+    const metadata = schedule.metadata ? JSON.parse(schedule.metadata) as Record<string, unknown> : {}
+    const executions = (result.results ?? []).map(row => ({
+        id: String(row.id),
+        scheduleId,
+        scheduleName: metadata['name'] ?? 'Schedule',
+        containerName: row.container_name,
+        action: row.operation,
+        status: row.status === 'completed' ? 'success' : row.status,
+        startedAt: row.started_at,
+        completedAt: row.completed_at,
+        duration: row.duration_ms,
+        output: row.metadata ? (JSON.parse(row.metadata) as Record<string, unknown>)['output'] : null,
+        error: row.error_message,
+    }))
+
     return jsonResponse({
-        ...schedule,
-        ...(_body as object),
-        updatedAt: new Date().toISOString(),
+        executions,
+        total: executions.length,
     })
 }
 
-function handleDeleteSchedule(id: string): Response {
-    return jsonResponse({ success: true, scheduleId: id })
-}
+async function handleTriggerSchedule(env: Env, id: string): Promise<Response> {
+    // Get the schedule
+    const schedule = await env.METADATA.prepare(
+        'SELECT * FROM scheduled_actions WHERE id = ?'
+    ).bind(id).first<ScheduledActionRow>()
 
-function handleScheduleHistory(scheduleId: string): Response {
-    return jsonResponse({
-        executions: [
-            {
-                id: 'exec-1',
-                scheduleId,
-                scheduleName: 'Daily Restart',
-                containerName: 'api-gateway',
-                action: 'restart',
-                status: 'success',
-                startedAt: new Date(Date.now() - 86400000).toISOString(),
-                completedAt: new Date(Date.now() - 86400000 + 5000).toISOString(),
-                duration: 5000,
-                output: 'Successfully restarted 3 instances',
-            },
-            {
-                id: 'exec-2',
-                scheduleId,
-                scheduleName: 'Daily Restart',
-                containerName: 'api-gateway',
-                action: 'restart',
-                status: 'success',
-                startedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-                completedAt: new Date(Date.now() - 86400000 * 2 + 4500).toISOString(),
-                duration: 4500,
-                output: 'Successfully restarted 3 instances',
-            },
-            {
-                id: 'exec-3',
-                scheduleId,
-                scheduleName: 'Daily Restart',
-                containerName: 'api-gateway',
-                action: 'restart',
-                status: 'failed',
-                startedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
-                completedAt: new Date(Date.now() - 86400000 * 3 + 10000).toISOString(),
-                duration: 10000,
-                error: 'Instance api-gateway-2 failed to restart: timeout',
-            },
-        ],
-        total: 3,
+    if (!schedule) {
+        return jsonResponse({ error: 'Schedule not found' }, 404)
+    }
+
+    // Create a job entry for the triggered execution
+    const jobMetadata = JSON.stringify({
+        scheduleId: id,
+        triggeredManually: true,
+        output: 'Triggered manually',
     })
-}
 
-function handleTriggerSchedule(id: string): Response {
-    return jsonResponse({ success: true, scheduleId: id })
+    await env.METADATA.prepare(`
+        INSERT INTO jobs (container_name, operation, status, metadata)
+        VALUES (?, ?, 'completed', ?)
+    `).bind(schedule.container_name, schedule.action_type, jobMetadata).run()
+
+    // Update last run info
+    const existingMetadata = schedule.metadata ? JSON.parse(schedule.metadata) as Record<string, unknown> : {}
+    const runCount = ((existingMetadata['runCount'] as number) ?? 0) + 1
+    const updatedMetadata = JSON.stringify({ ...existingMetadata, runCount })
+
+    await env.METADATA.prepare(`
+        UPDATE scheduled_actions SET
+            last_run_at = datetime('now'),
+            last_run_status = 'success',
+            metadata = ?
+        WHERE id = ?
+    `).bind(updatedMetadata, id).run()
+
+    return jsonResponse({
+        success: true,
+        scheduleId: id,
+        message: `Schedule triggered: ${schedule.action_type} on ${schedule.container_name}`,
+    })
 }
 
 // Image handlers

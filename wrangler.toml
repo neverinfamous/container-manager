@@ -1,0 +1,92 @@
+# Cloudflare Container Manager - Production Configuration
+# Custom domain: container.adamic.tech
+
+name = "container-manager"
+main = "worker/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Smart Placement disabled for SPA - UI responsiveness priority
+placement = { mode = "off" }
+
+[build]
+command = "npm run build"
+cwd = "."
+
+[assets]
+directory = "dist"
+binding = "ASSETS"
+
+# ============================================
+# D1 METADATA DATABASE CONFIGURATION
+# ============================================
+# This database stores container metadata, jobs, webhooks, schedules, and snapshots
+# Create database: wrangler d1 create container-manager-metadata
+# Then run: wrangler d1 execute container-manager-metadata --remote --file=worker/schema.sql
+[[d1_databases]]
+binding = "METADATA"
+database_name = "container-manager-metadata"
+database_id = "ead87abe-1b93-4a1f-951e-698433fc8814"
+
+# ============================================
+# R2 SNAPSHOT BUCKET
+# ============================================
+# R2 bucket for container configuration snapshots
+# Create bucket: wrangler r2 bucket create container-manager-snapshots
+[[r2_buckets]]
+binding = "SNAPSHOT_BUCKET"
+bucket_name = "container-manager-snapshots"
+
+# ============================================
+# DURABLE OBJECTS
+# ============================================
+# Durable Object for async snapshot operations
+[[durable_objects.bindings]]
+name = "SNAPSHOT_DO"
+class_name = "SnapshotDO"
+script_name = "container-manager"
+
+[[migrations]]
+tag = "v1_snapshot_do"
+new_classes = ["SnapshotDO"]
+
+# ============================================
+# SCHEDULED ACTIONS
+# ============================================
+# Cron trigger for scheduled container actions (restart, rebuild, scale)
+# Runs every 15 minutes to check for and execute due scheduled actions
+[triggers]
+crons = ["*/15 * * * *"]
+
+# ============================================
+# OBSERVABILITY
+# ============================================
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+
+# ============================================
+# CUSTOM DOMAIN ROUTING
+# ============================================
+[[routes]]
+pattern = "container.adamic.tech"
+custom_domain = true
+zone_name = "adamic.tech"
+
+# ============================================
+# REQUIRED SECRETS (Set via CLI)
+# ============================================
+# Run these commands to set your secrets:
+#
+#   wrangler secret put ACCOUNT_ID
+#   wrangler secret put API_KEY
+#   wrangler secret put TEAM_DOMAIN
+#   wrangler secret put POLICY_AUD
+#
+# Secret details:
+# - ACCOUNT_ID: Your Cloudflare account ID
+# - API_KEY: Cloudflare API token with Workers and Containers permissions
+# - TEAM_DOMAIN: Cloudflare Zero Trust team domain (e.g., yourteam.cloudflareaccess.com)
+# - POLICY_AUD: Access Policy AUD tag from your Access application
