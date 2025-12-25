@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, LayoutGrid, List, RefreshCw, Plus, Layout } from 'lucide-react'
+import { Search, LayoutGrid, List, RefreshCw, Plus, Layout, Rocket } from 'lucide-react'
 import { ContainerCard } from './ContainerCard'
 import { ContainerListView } from './ContainerListView'
 import { InstancesDialog } from './InstancesDialog'
@@ -8,6 +8,7 @@ import { ContainerLogsPanel } from './ContainerLogsPanel'
 import { ContainerEditDialog } from './ContainerEditDialog'
 import { ConfigGeneratorDialog } from './ConfigGeneratorDialog'
 import { TemplateGalleryDialog } from './TemplateGalleryDialog'
+import { DeploymentChecklistDialog } from './DeploymentChecklistDialog'
 import { listContainers, performContainerAction, deleteContainer } from '@/services/containerApi'
 import { copyToClipboard } from '@/lib/utils'
 import type { Container } from '@/types/container'
@@ -36,6 +37,7 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
     const [exportingContainer, setExportingContainer] = useState<Container | null>(null)
     const [showTemplateGallery, setShowTemplateGallery] = useState(false)
     const [selectedTemplate, setSelectedTemplate] = useState<ContainerTemplate | undefined>(undefined)
+    const [showDeployGuide, setShowDeployGuide] = useState(false)
 
 
     const fetchContainers = useCallback(async (skipCache?: boolean): Promise<void> => {
@@ -215,6 +217,15 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                     Templates
                 </button>
 
+                {/* Deploy guide */}
+                <button
+                    onClick={() => setShowDeployGuide(true)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-md border border-orange-500/50 text-orange-400 hover:bg-orange-500/10 transition-colors"
+                >
+                    <Rocket className="h-4 w-4" />
+                    Deploy Guide
+                </button>
+
                 {/* Register new container */}
                 <button
                     onClick={handleCreateNew}
@@ -340,6 +351,12 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                 isOpen={showTemplateGallery}
                 onClose={() => setShowTemplateGallery(false)}
                 onSelectTemplate={handleSelectTemplate}
+            />
+
+            {/* Deployment Checklist dialog */}
+            <DeploymentChecklistDialog
+                isOpen={showDeployGuide}
+                onClose={() => setShowDeployGuide(false)}
             />
         </div>
     )

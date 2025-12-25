@@ -126,6 +126,12 @@ wrangler d1 execute container-manager-metadata --remote --command="INSERT INTO c
 - 👀 **Preview Dockerfiles** before deploying
 - ⚡ **One-click setup** pre-fills container registration
 
+### Deployment Guide
+- 🚀 **Step-by-step checklist** for WSL2 and Cloudflare setup
+- 📋 **Copy-to-clipboard** for all commands
+- 💾 **Progress saved** to localStorage
+- 🔗 **Documentation links** for each step
+
 ---
 
 ## 🚀 Quick Start
