@@ -1,13 +1,14 @@
-import { Container, Moon, Sun, Monitor, BarChart3, GitBranch, Clock, Archive } from 'lucide-react'
+import { Container, Moon, Sun, Monitor, BarChart3, GitBranch, Clock, Archive, Calendar } from 'lucide-react'
 import { useTheme } from './hooks/useTheme'
 import { ContainerGrid } from './components/ContainerGrid'
 import { DependencyGraph } from './components/DependencyGraph'
 import { MetricsDashboard } from './components/MetricsDashboard'
 import { JobsPanel } from './components/JobsPanel'
 import { SnapshotsHub } from './components/SnapshotsHub'
+import { ScheduleManager } from './components/ScheduleManager'
 import { useState } from 'react'
 
-type Page = 'containers' | 'topology' | 'metrics' | 'jobs' | 'snapshots'
+type Page = 'containers' | 'topology' | 'metrics' | 'jobs' | 'snapshots' | 'schedules'
 
 function App(): React.ReactNode {
     const { theme, setTheme } = useTheme()
@@ -74,6 +75,16 @@ function App(): React.ReactNode {
                             <Archive className="h-4 w-4" />
                             Snapshots
                         </button>
+                        <button
+                            onClick={() => setCurrentPage('schedules')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${currentPage === 'schedules'
+                                ? 'bg-muted text-foreground'
+                                : 'text-foreground/60 hover:text-foreground hover:bg-muted/50'
+                                }`}
+                        >
+                            <Calendar className="h-4 w-4" />
+                            Schedules
+                        </button>
                     </nav>
 
                     <div className="ml-auto flex items-center gap-2">
@@ -133,6 +144,10 @@ function App(): React.ReactNode {
 
                 {currentPage === 'snapshots' && (
                     <SnapshotsHub />
+                )}
+
+                {currentPage === 'schedules' && (
+                    <ScheduleManager />
                 )}
             </main>
         </div>

@@ -263,6 +263,40 @@ async function handleApiRequest(
             return handleRestoreSnapshot(snapshotRestoreMatch[1], body)
         }
 
+        // Schedules routes
+        if (path === '/api/schedules' && request.method === 'GET') {
+            return handleGetSchedules()
+        }
+
+        if (path === '/api/schedules' && request.method === 'POST') {
+            const body = await request.json() as Record<string, unknown>
+            return handleCreateSchedule(body)
+        }
+
+        const scheduleMatch = /^\/api\/schedules\/([^/]+)$/.exec(path)
+        if (scheduleMatch?.[1] !== undefined) {
+            if (request.method === 'GET') {
+                return handleGetSchedule(scheduleMatch[1])
+            }
+            if (request.method === 'PUT') {
+                const body = await request.json() as Record<string, unknown>
+                return handleUpdateSchedule(scheduleMatch[1], body)
+            }
+            if (request.method === 'DELETE') {
+                return handleDeleteSchedule(scheduleMatch[1])
+            }
+        }
+
+        const scheduleHistoryMatch = /^\/api\/schedules\/([^/]+)\/history$/.exec(path)
+        if (scheduleHistoryMatch?.[1] !== undefined && request.method === 'GET') {
+            return handleScheduleHistory(scheduleHistoryMatch[1])
+        }
+
+        const scheduleTriggerMatch = /^\/api\/schedules\/([^/]+)\/trigger$/.exec(path)
+        if (scheduleTriggerMatch?.[1] !== undefined && request.method === 'POST') {
+            return handleTriggerSchedule(scheduleTriggerMatch[1])
+        }
+
         // Migrations status
         if (path === '/api/migrations/status') {
             const result = await env.METADATA.prepare(
@@ -1228,6 +1262,150 @@ function handleRestoreSnapshot(id: string, _options: unknown): Response {
             { field: 'envVars.LOG_LEVEL', oldValue: 'warn', newValue: 'info' },
         ],
     })
+}
+
+// Mock schedules data
+const mockSchedules = [
+    {
+        id: 'sched-1',
+        containerName: 'api-gateway',
+        name: 'Daily Restart',
+        description: 'Restart container daily for memory cleanup',
+        action: 'restart',
+        cronExpression: '0 2 * * *',
+        cronDescription: 'Daily at 2:00 AM',
+        timezone: 'America/New_York',
+        enabled: true,
+        status: 'active',
+        createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000).toISOString(),
+        lastRunAt: new Date(Date.now() - 86400000).toISOString(),
+        lastRunStatus: 'success',
+        nextRunAt: new Date(Date.now() + 3600000 * 12).toISOString(),
+        runCount: 28,
+    },
+    {
+        id: 'sched-2',
+        containerName: 'user-service',
+        name: 'Weekly Snapshot',
+        description: 'Create weekly config snapshot',
+        action: 'snapshot',
+        cronExpression: '0 0 * * 0',
+        cronDescription: 'Weekly on Sunday at midnight',
+        timezone: 'UTC',
+        enabled: true,
+        status: 'active',
+        createdAt: new Date(Date.now() - 86400000 * 60).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000 * 7).toISOString(),
+        lastRunAt: new Date(Date.now() - 86400000 * 7).toISOString(),
+        lastRunStatus: 'success',
+        nextRunAt: new Date(Date.now() + 86400000 * 3).toISOString(),
+        runCount: 8,
+    },
+    {
+        id: 'sched-3',
+        containerName: 'api-gateway',
+        name: 'Business Hours Scale',
+        action: 'scale_up',
+        cronExpression: '0 9 * * 1-5',
+        cronDescription: 'Weekdays at 9:00 AM',
+        timezone: 'America/New_York',
+        enabled: false,
+        status: 'paused',
+        createdAt: new Date(Date.now() - 86400000 * 14).toISOString(),
+        updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+        runCount: 0,
+    },
+]
+
+function handleGetSchedules(): Response {
+    return jsonResponse({
+        schedules: mockSchedules,
+        total: mockSchedules.length,
+    })
+}
+
+function handleGetSchedule(id: string): Response {
+    const schedule = mockSchedules.find(s => s.id === id)
+    if (!schedule) {
+        return jsonResponse({ error: 'Schedule not found' }, 404)
+    }
+    return jsonResponse(schedule)
+}
+
+function handleCreateSchedule(_body: unknown): Response {
+    return jsonResponse({
+        id: `sched-${Date.now()}`,
+        ...(_body as object),
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        runCount: 0,
+    })
+}
+
+function handleUpdateSchedule(id: string, _body: unknown): Response {
+    const schedule = mockSchedules.find(s => s.id === id)
+    if (!schedule) {
+        return jsonResponse({ error: 'Schedule not found' }, 404)
+    }
+    return jsonResponse({
+        ...schedule,
+        ...(_body as object),
+        updatedAt: new Date().toISOString(),
+    })
+}
+
+function handleDeleteSchedule(id: string): Response {
+    return jsonResponse({ success: true, scheduleId: id })
+}
+
+function handleScheduleHistory(scheduleId: string): Response {
+    return jsonResponse({
+        executions: [
+            {
+                id: 'exec-1',
+                scheduleId,
+                scheduleName: 'Daily Restart',
+                containerName: 'api-gateway',
+                action: 'restart',
+                status: 'success',
+                startedAt: new Date(Date.now() - 86400000).toISOString(),
+                completedAt: new Date(Date.now() - 86400000 + 5000).toISOString(),
+                duration: 5000,
+                output: 'Successfully restarted 3 instances',
+            },
+            {
+                id: 'exec-2',
+                scheduleId,
+                scheduleName: 'Daily Restart',
+                containerName: 'api-gateway',
+                action: 'restart',
+                status: 'success',
+                startedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+                completedAt: new Date(Date.now() - 86400000 * 2 + 4500).toISOString(),
+                duration: 4500,
+                output: 'Successfully restarted 3 instances',
+            },
+            {
+                id: 'exec-3',
+                scheduleId,
+                scheduleName: 'Daily Restart',
+                containerName: 'api-gateway',
+                action: 'restart',
+                status: 'failed',
+                startedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+                completedAt: new Date(Date.now() - 86400000 * 3 + 10000).toISOString(),
+                duration: 10000,
+                error: 'Instance api-gateway-2 failed to restart: timeout',
+            },
+        ],
+        total: 3,
+    })
+}
+
+function handleTriggerSchedule(id: string): Response {
+    return jsonResponse({ success: true, scheduleId: id })
 }
 
 /**
