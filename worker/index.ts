@@ -265,6 +265,12 @@ async function handleApiRequest(
             return await handleContainerAction(name, 'stop', env)
         }
 
+        const healthMatch = /^\/api\/containers\/([^/]+)\/health$/.exec(path)
+        if (healthMatch?.[1] !== undefined && request.method === 'GET') {
+            const name = decodeURIComponent(healthMatch[1])
+            return await handleContainerHealthCheck(name, url.searchParams, env)
+        }
+
         const colorMatch = /^\/api\/containers\/([^/]+)\/color$/.exec(path)
         if (colorMatch?.[1] !== undefined && request.method === 'PUT') {
             const name = decodeURIComponent(colorMatch[1])
@@ -583,6 +589,89 @@ async function handleListContainers(env: Env): Promise<Response> {
             ? 'No containers registered. Use the "Deploy" button or POST /api/containers/register to add containers.'
             : undefined,
     })
+}
+
+/**
+ * Handle container health check
+ * Performs an HTTP GET to the container's URL + health path
+ */
+async function handleContainerHealthCheck(
+    name: string,
+    params: URLSearchParams,
+    env: Env
+): Promise<Response> {
+    const path = params.get('path') ?? '/health'
+    const expectedStatus = parseInt(params.get('expectedStatus') ?? '200', 10)
+    const timeoutMs = parseInt(params.get('timeoutMs') ?? '5000', 10)
+
+    // Get container from D1 to find its URL
+    interface ContainerRow {
+        name: string
+        image: string | null
+        worker_name: string | null
+    }
+
+    const result = await env.METADATA.prepare(
+        'SELECT name, image, worker_name FROM containers WHERE name = ?'
+    ).bind(name).first<ContainerRow>()
+
+    if (!result) {
+        return jsonResponse({
+            status: 'unknown',
+            statusCode: null,
+            latencyMs: null,
+            lastChecked: new Date().toISOString(),
+            error: 'Container not found',
+        })
+    }
+
+    // Build the health check URL
+    // For now, we use the worker_name as the base URL if available
+    // In production, this would be the container's actual endpoint
+    const workerName = result.worker_name
+    if (!workerName) {
+        return jsonResponse({
+            status: 'unknown',
+            statusCode: null,
+            latencyMs: null,
+            lastChecked: new Date().toISOString(),
+            error: 'No worker URL configured for this container',
+        })
+    }
+
+    try {
+        const healthUrl = `https://${workerName}.${env.ACCOUNT_ID ?? 'yoursubdomain'}.workers.dev${path}`
+        const startTime = Date.now()
+
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+        const response = await fetch(healthUrl, {
+            method: 'GET',
+            signal: controller.signal,
+        })
+
+        clearTimeout(timeoutId)
+        const latencyMs = Date.now() - startTime
+
+        const isHealthy = response.status === expectedStatus
+
+        return jsonResponse({
+            status: isHealthy ? 'healthy' : 'unhealthy',
+            statusCode: response.status,
+            latencyMs,
+            lastChecked: new Date().toISOString(),
+            error: isHealthy ? null : `Expected status ${expectedStatus}, got ${response.status}`,
+        })
+    } catch (err) {
+        return jsonResponse({
+            status: 'unhealthy',
+            statusCode: null,
+            latencyMs: null,
+            lastChecked: new Date().toISOString(),
+            error: err instanceof Error ? err.message : 'Health check failed',
+        })
+    }
 }
 
 /**

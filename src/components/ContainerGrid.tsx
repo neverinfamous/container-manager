@@ -9,6 +9,7 @@ import { ContainerEditDialog } from './ContainerEditDialog'
 import { ConfigGeneratorDialog } from './ConfigGeneratorDialog'
 import { TemplateGalleryDialog } from './TemplateGalleryDialog'
 import { DeploymentChecklistDialog } from './DeploymentChecklistDialog'
+import { HealthProbeDialog } from './HealthProbeDialog'
 import { listContainers, performContainerAction, deleteContainer } from '@/services/containerApi'
 import { copyToClipboard } from '@/lib/utils'
 import type { Container } from '@/types/container'
@@ -38,6 +39,8 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
     const [showTemplateGallery, setShowTemplateGallery] = useState(false)
     const [selectedTemplate, setSelectedTemplate] = useState<ContainerTemplate | undefined>(undefined)
     const [showDeployGuide, setShowDeployGuide] = useState(false)
+    const [showHealthDialog, setShowHealthDialog] = useState(false)
+    const [healthContainer, setHealthContainer] = useState<Container | null>(null)
 
 
     const fetchContainers = useCallback(async (skipCache?: boolean): Promise<void> => {
@@ -133,6 +136,11 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
         setSelectedTemplate(template)
         setEditingContainer(undefined)
         setShowEditDialog(true)
+    }, [])
+
+    const handleHealth = useCallback((container: Container): void => {
+        setHealthContainer(container)
+        setShowHealthDialog(true)
     }, [])
 
     // Filter containers by search query
@@ -272,6 +280,7 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                             onEdit={() => handleEdit(container)}
                             onDelete={() => void handleDelete(container)}
                             onExport={() => handleExport(container)}
+                            onHealth={() => handleHealth(container)}
                             {...(container.color !== undefined && { color: container.color })}
                             {...(container.class.sleepAfter !== undefined && { sleepAfter: container.class.sleepAfter })}
                         />
@@ -358,6 +367,19 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                 isOpen={showDeployGuide}
                 onClose={() => setShowDeployGuide(false)}
             />
+
+            {/* Health Probe dialog */}
+            {healthContainer && (
+                <HealthProbeDialog
+                    isOpen={showHealthDialog}
+                    onClose={() => {
+                        setShowHealthDialog(false)
+                        setHealthContainer(null)
+                    }}
+                    containerName={healthContainer.class.name}
+                    {...(healthContainer.class.workerName && { containerUrl: `https://${healthContainer.class.workerName}.workers.dev` })}
+                />
+            )}
         </div>
     )
 }

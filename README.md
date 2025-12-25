@@ -132,6 +132,12 @@ wrangler d1 execute container-manager-metadata --remote --command="INSERT INTO c
 - 💾 **Progress saved** to localStorage
 - 🔗 **Documentation links** for each step
 
+### Health Probes
+- ❤️ **HTTP health checks** to container endpoints
+- ⚙️ **Configurable** path, expected status, timeout
+- ⏱️ **Real-time latency** measurement
+- 🔄 **Check Now** button for on-demand probes
+
 ---
 
 ## 🚀 Quick Start
