@@ -4,11 +4,25 @@ import { type Env } from './types/env'
  * Cloudflare Container Manager Worker
  *
  * This worker serves the frontend SPA and handles API requests for managing
- * Cloudflare Containers.
+ * Cloudflare Containers. Protected by Cloudflare Zero Trust Access.
  */
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
         const url = new URL(request.url)
+
+        // Health check endpoint - no auth required
+        if (url.pathname === '/api/health') {
+            return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() })
+        }
+
+        // Validate Zero Trust JWT for all other requests
+        const authResult = await validateAccessJWT(request, env)
+        if (!authResult.valid) {
+            return new Response(JSON.stringify({ error: 'Unauthorized', message: authResult.error }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' },
+            })
+        }
 
         // Handle API routes
         if (url.pathname.startsWith('/api/')) {
@@ -23,6 +37,141 @@ export default {
         console.log(`Scheduled event triggered: ${event.cron}`)
         ctx.waitUntil(processScheduledActions(env))
     },
+}
+
+/**
+ * Zero Trust Access JWT Validation
+ */
+interface JWTValidationResult {
+    valid: boolean
+    error?: string
+    email?: string
+}
+
+interface JWTHeader {
+    alg: string
+    kid: string
+}
+
+interface JWTPayload {
+    aud: string[]
+    email: string
+    exp: number
+    iat: number
+    iss: string
+    sub: string
+    type: string
+}
+
+interface CloudflareAccessKey {
+    kid: string
+    kty: string
+    alg: string
+    use: string
+    e: string
+    n: string
+}
+
+interface CloudflareAccessKeysResponse {
+    keys: CloudflareAccessKey[]
+    public_cert: { kid: string; cert: string }
+    public_certs: { kid: string; cert: string }[]
+}
+
+// Cache for Access public keys
+let accessKeysCache: CloudflareAccessKeysResponse | null = null
+let accessKeysCacheTime = 0
+const ACCESS_KEYS_CACHE_TTL = 300000 // 5 minutes
+
+async function validateAccessJWT(request: Request, env: Env): Promise<JWTValidationResult> {
+    // Skip auth in development mode (check for localhost or missing env vars)
+    if (!env.TEAM_DOMAIN || !env.POLICY_AUD) {
+        return { valid: true, email: 'dev@localhost' }
+    }
+
+    // Get JWT from cookie or header
+    const cookie = request.headers.get('Cookie') ?? ''
+    const cookieMatch = /CF_Authorization=([^;]+)/.exec(cookie)
+    const jwtToken = cookieMatch?.[1] ?? request.headers.get('Cf-Access-Jwt-Assertion')
+
+    if (!jwtToken) {
+        return { valid: false, error: 'No Access token found' }
+    }
+
+    try {
+        // Decode JWT parts
+        const parts = jwtToken.split('.')
+        if (parts.length !== 3) {
+            return { valid: false, error: 'Invalid JWT format' }
+        }
+
+        // We've verified length is 3, so these are safe
+        const [headerB64, payloadB64, signatureB64] = parts as [string, string, string]
+
+        const header = JSON.parse(atob(headerB64)) as JWTHeader
+        const payload = JSON.parse(atob(payloadB64)) as JWTPayload
+
+        // Verify audience
+        if (!payload.aud.includes(env.POLICY_AUD)) {
+            return { valid: false, error: 'Invalid audience' }
+        }
+
+        // Verify expiration
+        if (Date.now() / 1000 > payload.exp) {
+            return { valid: false, error: 'Token expired' }
+        }
+
+        // Fetch Access public keys (with caching)
+        if (!accessKeysCache || Date.now() - accessKeysCacheTime > ACCESS_KEYS_CACHE_TTL) {
+            const certsUrl = `https://${env.TEAM_DOMAIN}/cdn-cgi/access/certs`
+            const certsResponse = await fetch(certsUrl)
+            if (!certsResponse.ok) {
+                return { valid: false, error: 'Failed to fetch Access public keys' }
+            }
+            accessKeysCache = await certsResponse.json() as CloudflareAccessKeysResponse
+            accessKeysCacheTime = Date.now()
+        }
+
+        // Find matching key
+        const key = accessKeysCache.keys.find((k: CloudflareAccessKey) => k.kid === header.kid)
+        if (!key) {
+            return { valid: false, error: 'Public key not found' }
+        }
+
+        // Import the public key
+        const cryptoKey = await crypto.subtle.importKey(
+            'jwk',
+            {
+                kty: key.kty,
+                n: key.n,
+                e: key.e,
+                alg: key.alg,
+                use: key.use,
+            },
+            { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+            false,
+            ['verify']
+        )
+
+        // Verify signature
+        const signatureArray = Uint8Array.from(atob(signatureB64.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))
+        const dataToVerify = new TextEncoder().encode(`${headerB64}.${payloadB64}`)
+
+        const isValid = await crypto.subtle.verify(
+            'RSASSA-PKCS1-v1_5',
+            cryptoKey,
+            signatureArray,
+            dataToVerify
+        )
+
+        if (!isValid) {
+            return { valid: false, error: 'Invalid signature' }
+        }
+
+        return { valid: true, email: payload.email }
+    } catch (err) {
+        return { valid: false, error: `JWT validation error: ${err instanceof Error ? err.message : 'Unknown'}` }
+    }
 }
 
 // CORS headers
@@ -358,92 +507,18 @@ async function handleListContainers(env: Env): Promise<Response> {
         colorMap.set(row.container_name, row.color)
     }
 
-    // Demo containers - in production, fetch from Cloudflare API
-    const demoContainers = [
-        {
-            class: {
-                name: 'api-server',
-                className: 'ApiServer',
-                workerName: 'my-api-worker',
-                image: 'docker.io/myorg/api-server:latest',
-                instanceType: 'standard-1' as const,
-                maxInstances: 10,
-                defaultPort: 8080,
-                sleepAfter: '5m',
-                createdAt: '2025-01-01T00:00:00Z',
-                modifiedAt: '2025-12-24T12:00:00Z',
-            },
-            instances: [
-                {
-                    id: 'inst-abc123',
-                    containerName: 'api-server',
-                    status: 'running' as const,
-                    location: 'iad',
-                    startedAt: new Date(Date.now() - 3600000).toISOString(),
-                    cpuPercent: 12.5,
-                    memoryMb: 256,
-                },
-                {
-                    id: 'inst-def456',
-                    containerName: 'api-server',
-                    status: 'running' as const,
-                    location: 'sfo',
-                    startedAt: new Date(Date.now() - 7200000).toISOString(),
-                    cpuPercent: 8.3,
-                    memoryMb: 198,
-                },
-            ],
-            status: 'running' as const,
-            color: colorMap.get('api-server'),
-        },
-        {
-            class: {
-                name: 'worker-processor',
-                className: 'WorkerProcessor',
-                workerName: 'background-jobs',
-                image: 'docker.io/myorg/worker:v2.1.0',
-                instanceType: 'standard-2' as const,
-                maxInstances: 5,
-                defaultPort: 9000,
-                sleepAfter: '10m',
-                createdAt: '2025-02-15T00:00:00Z',
-                modifiedAt: '2025-12-20T08:30:00Z',
-            },
-            instances: [
-                {
-                    id: 'inst-ghi789',
-                    containerName: 'worker-processor',
-                    status: 'running' as const,
-                    location: 'lhr',
-                    startedAt: new Date(Date.now() - 1800000).toISOString(),
-                    cpuPercent: 45.2,
-                    memoryMb: 1024,
-                },
-            ],
-            status: 'running' as const,
-            color: colorMap.get('worker-processor'),
-        },
-        {
-            class: {
-                name: 'ml-inference',
-                className: 'MLInference',
-                workerName: 'ml-service',
-                image: 'docker.io/myorg/ml-model:v1.0.0',
-                instanceType: 'standard-4' as const,
-                maxInstances: 3,
-                defaultPort: 5000,
-                createdAt: '2025-03-01T00:00:00Z',
-                modifiedAt: '2025-12-22T16:00:00Z',
-            },
-            instances: [],
-            status: 'stopped' as const,
-            color: colorMap.get('ml-inference'),
-        },
-    ]
+    // No containers are configured yet.
+    // Containers must be defined in wrangler.toml with [[containers]] sections.
+    // When you add real containers, this function should query them from the 
+    // Cloudflare Containers API or from a D1 table that tracks container configuration.
+    const containers: unknown[] = []
 
     return jsonResponse({
-        containers: demoContainers,
-        total: demoContainers.length,
+        containers,
+        total: containers.length,
+        message: containers.length === 0
+            ? 'No containers configured. Add container definitions to wrangler.toml to get started.'
+            : undefined,
     })
 }
 

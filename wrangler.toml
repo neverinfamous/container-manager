@@ -90,3 +90,54 @@ zone_name = "adamic.tech"
 # - API_KEY: Cloudflare API token with Workers and Containers permissions
 # - TEAM_DOMAIN: Cloudflare Zero Trust team domain (e.g., yourteam.cloudflareaccess.com)
 # - POLICY_AUD: Access Policy AUD tag from your Access application
+
+# ============================================
+# CONTAINER DEFINITIONS (Examples)
+# ============================================
+# Containers are managed workloads running in the Cloudflare network.
+# Each container is defined as a Durable Object with a Dockerfile.
+#
+# To add a container:
+# 1. Create a Dockerfile in your project (e.g., containers/api/Dockerfile)
+# 2. Uncomment and customize the container definition below
+# 3. Deploy with: wrangler deploy
+#
+# Note: Containers require a separate Cloudflare Containers subscription.
+
+# Example: API Gateway Container
+# [[containers]]
+# class_name = "ApiGateway"
+# image = "./containers/api/Dockerfile"
+# max_instances = 10
+
+# [[durable_objects.bindings]]
+# name = "API_GATEWAY"
+# class_name = "ApiGateway"
+
+# Example: Background Worker Container
+# [[containers]]
+# class_name = "BackgroundWorker"
+# image = "./containers/worker/Dockerfile"
+# max_instances = 5
+
+# [[durable_objects.bindings]]
+# name = "BACKGROUND_WORKER"
+# class_name = "BackgroundWorker"
+
+# Example: Database Proxy Container
+# [[containers]]
+# class_name = "DatabaseProxy"
+# image = "./containers/db-proxy/Dockerfile"
+# max_instances = 3
+
+# [[durable_objects.bindings]]
+# name = "DATABASE_PROXY"
+# class_name = "DatabaseProxy"
+
+# ============================================
+# CONTAINER MIGRATIONS (Add when enabling containers)
+# ============================================
+# Uncomment when you add actual containers:
+# [[migrations]]
+# tag = "v2_containers"
+# new_sqlite_classes = ["ApiGateway", "BackgroundWorker", "DatabaseProxy"]
