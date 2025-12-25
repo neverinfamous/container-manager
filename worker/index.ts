@@ -297,6 +297,32 @@ async function handleApiRequest(
             return handleTriggerSchedule(scheduleTriggerMatch[1])
         }
 
+        // Image routes
+        const imageInfoMatch = /^\/api\/containers\/([^/]+)\/image$/.exec(path)
+        if (imageInfoMatch?.[1] !== undefined && request.method === 'GET') {
+            return handleGetImageInfo(imageInfoMatch[1])
+        }
+
+        const rolloutsMatch = /^\/api\/containers\/([^/]+)\/rollouts$/.exec(path)
+        if (rolloutsMatch?.[1] !== undefined && request.method === 'GET') {
+            return handleGetRollouts(rolloutsMatch[1])
+        }
+
+        const buildsMatch = /^\/api\/containers\/([^/]+)\/builds$/.exec(path)
+        if (buildsMatch?.[1] !== undefined && request.method === 'GET') {
+            return handleGetBuilds(buildsMatch[1])
+        }
+
+        const rebuildMatch = /^\/api\/containers\/([^/]+)\/rebuild$/.exec(path)
+        if (rebuildMatch?.[1] !== undefined && request.method === 'POST') {
+            return handleRebuild(rebuildMatch[1])
+        }
+
+        const rollbackMatch = /^\/api\/containers\/([^/]+)\/rollback$/.exec(path)
+        if (rollbackMatch?.[1] !== undefined && request.method === 'POST') {
+            return handleRollback(rollbackMatch[1])
+        }
+
         // Migrations status
         if (path === '/api/migrations/status') {
             const result = await env.METADATA.prepare(
@@ -1406,6 +1432,129 @@ function handleScheduleHistory(scheduleId: string): Response {
 
 function handleTriggerSchedule(id: string): Response {
     return jsonResponse({ success: true, scheduleId: id })
+}
+
+// Image handlers
+function handleGetImageInfo(containerName: string): Response {
+    return jsonResponse({
+        current: {
+            containerName,
+            digest: 'sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4',
+            tag: 'v2.1.0',
+            registry: 'registry.cloudflare.com',
+            repository: `containers/${containerName}`,
+            size: 156274688, // ~149 MB
+            createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+            builtAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+            dockerfileSource: 'github.com/org/repo/Dockerfile',
+            buildArgs: { NODE_ENV: 'production' },
+        },
+        previousVersions: [
+            {
+                digest: 'sha256:b4ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d5',
+                tag: 'v2.0.0',
+                builtAt: new Date(Date.now() - 86400000 * 10).toISOString(),
+            },
+            {
+                digest: 'sha256:c5ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d6',
+                tag: 'v1.9.0',
+                builtAt: new Date(Date.now() - 86400000 * 20).toISOString(),
+            },
+            {
+                digest: 'sha256:d6ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d7',
+                tag: 'v1.8.0',
+                builtAt: new Date(Date.now() - 86400000 * 30).toISOString(),
+            },
+        ],
+    })
+}
+
+function handleGetRollouts(containerName: string): Response {
+    return jsonResponse({
+        rollouts: [
+            {
+                id: 'rollout-1',
+                containerName,
+                fromDigest: 'sha256:b4ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d5',
+                toDigest: 'sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4',
+                toTag: 'v2.1.0',
+                status: 'complete',
+                startedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+                completedAt: new Date(Date.now() - 86400000 * 3 + 45000).toISOString(),
+                duration: 45000,
+                instancesUpdated: 3,
+                instancesTotal: 3,
+                triggeredBy: 'admin',
+            },
+            {
+                id: 'rollout-2',
+                containerName,
+                fromDigest: 'sha256:c5ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d6',
+                toDigest: 'sha256:b4ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d5',
+                toTag: 'v2.0.0',
+                status: 'complete',
+                startedAt: new Date(Date.now() - 86400000 * 10).toISOString(),
+                completedAt: new Date(Date.now() - 86400000 * 10 + 60000).toISOString(),
+                duration: 60000,
+                instancesUpdated: 3,
+                instancesTotal: 3,
+                triggeredBy: 'ci/cd',
+            },
+            {
+                id: 'rollout-3',
+                containerName,
+                toDigest: 'sha256:failed123',
+                toTag: 'v2.0.0-rc1',
+                status: 'failed',
+                startedAt: new Date(Date.now() - 86400000 * 12).toISOString(),
+                completedAt: new Date(Date.now() - 86400000 * 12 + 30000).toISOString(),
+                duration: 30000,
+                instancesUpdated: 1,
+                instancesTotal: 3,
+                triggeredBy: 'ci/cd',
+                error: 'Health check failed on instance 2',
+            },
+        ],
+        total: 3,
+    })
+}
+
+function handleGetBuilds(containerName: string): Response {
+    return jsonResponse({
+        builds: [
+            {
+                id: 'build-1',
+                containerName,
+                status: 'complete',
+                digest: 'sha256:a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4',
+                tag: 'v2.1.0',
+                startedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+                completedAt: new Date(Date.now() - 86400000 * 3 + 180000).toISOString(),
+                duration: 180000,
+                triggeredBy: 'ci/cd',
+            },
+        ],
+        total: 1,
+    })
+}
+
+function handleRebuild(containerName: string): Response {
+    return jsonResponse({
+        id: `build-${Date.now()}`,
+        containerName,
+        status: 'pending',
+        tag: 'latest',
+        startedAt: new Date().toISOString(),
+        triggeredBy: 'manual',
+    })
+}
+
+function handleRollback(containerName: string): Response {
+    return jsonResponse({
+        success: true,
+        rolloutId: `rollout-${Date.now()}`,
+        containerName,
+    })
 }
 
 /**
