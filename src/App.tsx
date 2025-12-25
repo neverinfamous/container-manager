@@ -1,6 +1,7 @@
 import { Container, Moon, Sun, Monitor, BarChart3, GitBranch, Clock } from 'lucide-react'
 import { useTheme } from './hooks/useTheme'
 import { ContainerGrid } from './components/ContainerGrid'
+import { DependencyGraph } from './components/DependencyGraph'
 import { useState } from 'react'
 
 type Page = 'containers' | 'topology' | 'metrics' | 'jobs'
@@ -92,7 +93,7 @@ function App(): React.ReactNode {
             </header>
 
             {/* Main content */}
-            <main className="container py-6">
+            <main className={currentPage === 'topology' ? 'h-[calc(100vh-3.5rem)]' : 'container py-6'}>
                 {currentPage === 'containers' && (
                     <div className="flex flex-col gap-6">
                         <div className="flex flex-col gap-2">
@@ -106,18 +107,7 @@ function App(): React.ReactNode {
                 )}
 
                 {currentPage === 'topology' && (
-                    <div className="flex flex-col gap-6">
-                        <div className="flex flex-col gap-2">
-                            <h1 className="text-3xl font-bold tracking-tight">Topology</h1>
-                            <p className="text-muted-foreground">
-                                Visualize container dependencies and bindings
-                            </p>
-                        </div>
-                        <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
-                            <GitBranch className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                            <p>Topology visualization coming in Phase 5</p>
-                        </div>
-                    </div>
+                    <DependencyGraph />
                 )}
 
                 {currentPage === 'metrics' && (

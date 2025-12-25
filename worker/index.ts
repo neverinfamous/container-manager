@@ -151,6 +151,20 @@ async function handleApiRequest(
             return await handleHttpTest(name, body)
         }
 
+        // Topology routes
+        if (path === '/api/topology' && request.method === 'GET') {
+            return handleGetTopology()
+        }
+
+        if (path === '/api/topology/orphans' && request.method === 'GET') {
+            return handleDetectOrphans()
+        }
+
+        if (path === '/api/topology/positions' && request.method === 'PUT') {
+            const body = await request.json() as Record<string, { x: number; y: number }>
+            return await handleSavePositions(body, env)
+        }
+
         // Job history
         if (path === '/api/jobs') {
             const result = await env.METADATA.prepare(
@@ -570,7 +584,7 @@ function handleGetLogs(name: string): Response {
  * Clear logs for container
  */
 function handleClearLogs(name: string): Response {
-     
+
     console.log(`Clearing logs for container: ${name}`)
     return jsonResponse({ success: true })
 }
@@ -603,7 +617,7 @@ async function handleHttpTest(
     name: string,
     request: Record<string, unknown>
 ): Promise<Response> {
-     
+
     console.log(`HTTP test for ${name}:`, request)
 
     // Simulate network delay
@@ -643,6 +657,70 @@ async function handleHttpTest(
         duration: Math.floor(100 + Math.random() * 400),
         size: body.length,
     })
+}
+
+/**
+ * Get container topology (demo data)
+ */
+function handleGetTopology(): Response {
+    const nodes = [
+        { id: 'api-gateway', name: 'api-gateway', className: 'ApiGateway', status: 'running', instanceCount: 3, type: 'container' },
+        { id: 'user-service', name: 'user-service', className: 'UserService', status: 'running', instanceCount: 2, type: 'container' },
+        { id: 'auth-service', name: 'auth-service', className: 'AuthService', status: 'running', instanceCount: 2, type: 'container' },
+        { id: 'database', name: 'database', className: 'PostgresDB', status: 'running', instanceCount: 1, type: 'database' },
+        { id: 'cache', name: 'cache', className: 'RedisCache', status: 'running', instanceCount: 1, type: 'service' },
+        { id: 'storage', name: 'storage', className: 'ObjectStorage', status: 'running', instanceCount: 1, type: 'storage' },
+        { id: 'worker', name: 'worker', className: 'BackgroundWorker', status: 'sleeping', instanceCount: 0, type: 'container' },
+    ]
+
+    const edges = [
+        { id: 'e1', source: 'api-gateway', target: 'user-service', bindingType: 'service', bindingName: 'users' },
+        { id: 'e2', source: 'api-gateway', target: 'auth-service', bindingType: 'service', bindingName: 'auth' },
+        { id: 'e3', source: 'user-service', target: 'database', bindingType: 'd1', bindingName: 'USERS_DB' },
+        { id: 'e4', source: 'auth-service', target: 'database', bindingType: 'd1', bindingName: 'AUTH_DB' },
+        { id: 'e5', source: 'user-service', target: 'cache', bindingType: 'kv', bindingName: 'USER_CACHE' },
+        { id: 'e6', source: 'auth-service', target: 'cache', bindingType: 'kv', bindingName: 'SESSION_CACHE' },
+        { id: 'e7', source: 'user-service', target: 'storage', bindingType: 'r2', bindingName: 'AVATARS' },
+        { id: 'e8', source: 'api-gateway', target: 'worker', bindingType: 'queue', bindingName: 'TASKS', animated: true },
+    ]
+
+    return jsonResponse({ nodes, edges })
+}
+
+/**
+ * Detect orphan containers and issues (demo data)
+ */
+function handleDetectOrphans(): Response {
+    return jsonResponse({
+        orphanContainers: ['legacy-worker'],
+        unusedBindings: ['OLD_KV_BINDING'],
+        circularDependencies: [],
+    })
+}
+
+/**
+ * Save node positions to D1
+ */
+async function handleSavePositions(
+    positions: Record<string, { x: number; y: number }>,
+    env: Env
+): Promise<Response> {
+    // Log positions for demo
+     
+    console.log('Saving positions:', positions)
+
+    // In production, would save to D1
+    try {
+        for (const [nodeId, pos] of Object.entries(positions)) {
+            await env.METADATA.prepare(
+                'INSERT OR REPLACE INTO container_colors (container_name, color) VALUES (?, ?)'
+            ).bind(nodeId, JSON.stringify(pos)).run()
+        }
+    } catch {
+        // Silently fail for demo
+    }
+
+    return jsonResponse({ success: true })
 }
 
 /**
