@@ -197,3 +197,78 @@ export async function updateHealthConfig(
         body: JSON.stringify(config),
     })
 }
+
+/**
+ * Container registration data for create/update
+ */
+export interface ContainerRegistration {
+    name: string | undefined // Required for create, not for update
+    className: string
+    workerName: string | undefined
+    image: string | undefined
+    instanceType: string | undefined
+    maxInstances: number | undefined
+    defaultPort: number | undefined
+    sleepAfter: string | undefined
+    status: string | undefined
+}
+
+/**
+ * Create a new container registration
+ */
+export async function createContainer(
+    data: ContainerRegistration & { name: string }
+): Promise<{ success: boolean; container: ContainerRegistration }> {
+    const response = await apiRequest<{ success: boolean; container: ContainerRegistration }>(
+        '/containers',
+        {
+            method: 'POST',
+            body: JSON.stringify(data),
+        }
+    )
+
+    // Invalidate cache
+    invalidateCache('containers')
+
+    return response
+}
+
+/**
+ * Update an existing container registration
+ */
+export async function updateContainer(
+    containerName: string,
+    data: Partial<ContainerRegistration>
+): Promise<{ success: boolean; containerName: string }> {
+    const response = await apiRequest<{ success: boolean; containerName: string }>(
+        `/containers/${encodeURIComponent(containerName)}`,
+        {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        }
+    )
+
+    // Invalidate cache
+    invalidateCache('containers')
+    invalidateCache(`container:${containerName}`)
+
+    return response
+}
+
+/**
+ * Delete a container registration
+ */
+export async function deleteContainer(
+    containerName: string
+): Promise<{ success: boolean; containerName: string }> {
+    const response = await apiRequest<{ success: boolean; containerName: string }>(
+        `/containers/${encodeURIComponent(containerName)}`,
+        { method: 'DELETE' }
+    )
+
+    // Invalidate cache
+    invalidateCache('containers')
+    invalidateCache(`container:${containerName}`)
+
+    return response
+}

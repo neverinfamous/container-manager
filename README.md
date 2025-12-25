@@ -67,8 +67,10 @@ wrangler d1 execute container-manager-metadata --remote --command="INSERT INTO c
 
 ### Container Lifecycle (UI Ready)
 - 📋 View all registered containers from D1 shadow registry
-- ▶️ Start, stop, restart container controls
+- ➕ **Register containers via UI** (no wrangler commands needed!)
+- ✏️ **Edit container registrations** inline
 - 🗑️ Delete containers with confirmation
+- ▶️ Start, stop, restart container controls
 - 🏷️ Color tags for visual organization
 - 📊 Status indicators (running, stopped, etc.)
 

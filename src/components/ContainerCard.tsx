@@ -12,6 +12,8 @@ import {
     Cpu,
     HardDrive,
     Terminal,
+    Pencil,
+    Trash2,
 } from 'lucide-react'
 
 interface ContainerCardProps {
@@ -30,6 +32,8 @@ interface ContainerCardProps {
     onCopyName?: () => void
     onConfigure?: () => void
     onViewLogs?: () => void
+    onEdit?: () => void
+    onDelete?: () => void
 }
 
 const statusColors: Record<ContainerStatus, string> = {
@@ -66,6 +70,8 @@ export function ContainerCard({
     onCopyName,
     onConfigure,
     onViewLogs,
+    onEdit,
+    onDelete,
 }: ContainerCardProps): React.ReactNode {
     const specs = INSTANCE_SPECS[instanceType]
 
@@ -198,6 +204,22 @@ export function ContainerCard({
                         title="Configure"
                     >
                         <Settings className="h-4 w-4" />
+                    </button>
+
+                    <button
+                        onClick={onEdit}
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                        title="Edit Registration"
+                    >
+                        <Pencil className="h-4 w-4" />
+                    </button>
+
+                    <button
+                        onClick={onDelete}
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors text-destructive"
+                        title="Delete Registration"
+                    >
+                        <Trash2 className="h-4 w-4" />
                     </button>
                 </div>
             </div>

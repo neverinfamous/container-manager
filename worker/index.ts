@@ -224,16 +224,28 @@ async function handleApiRequest(
             return await handleRegisterContainer(env, body)
         }
 
+
+        // POST /api/containers - create new container (REST standard)
+        if (path === '/api/containers' && request.method === 'POST') {
+            const body = await request.json() as Record<string, unknown>
+            return await handleRegisterContainer(env, body)
+        }
+
         const containerMatch = /^\/api\/containers\/([^/]+)$/.exec(path)
         if (containerMatch?.[1] !== undefined) {
             const name = decodeURIComponent(containerMatch[1])
             if (request.method === 'GET') {
                 return await handleGetContainer(name, env)
             }
+            if (request.method === 'PUT') {
+                const body = await request.json() as Record<string, unknown>
+                return await handleUpdateContainer(env, name, body)
+            }
             if (request.method === 'DELETE') {
                 return await handleDeleteContainer(env, name)
             }
         }
+
 
         const instancesMatch = /^\/api\/containers\/([^/]+)\/instances$/.exec(path)
         if (instancesMatch?.[1] !== undefined && request.method === 'GET') {
@@ -648,6 +660,78 @@ async function handleDeleteContainer(env: Env, name: string): Promise<Response> 
 
     return jsonResponse({ success: true, containerName: name })
 }
+
+/**
+ * Update a container registration
+ */
+interface UpdateContainerBody {
+    className?: string
+    workerName?: string
+    image?: string
+    instanceType?: string
+    maxInstances?: number
+    defaultPort?: number
+    sleepAfter?: string
+    status?: string
+}
+
+async function handleUpdateContainer(env: Env, name: string, body: unknown): Promise<Response> {
+    const data = body as UpdateContainerBody
+
+    // Build dynamic UPDATE query
+    const updates: string[] = []
+    const values: (string | number | null)[] = []
+
+    if (data.className !== undefined) {
+        updates.push('class_name = ?')
+        values.push(data.className)
+    }
+    if (data.workerName !== undefined) {
+        updates.push('worker_name = ?')
+        values.push(data.workerName || null)
+    }
+    if (data.image !== undefined) {
+        updates.push('image = ?')
+        values.push(data.image || null)
+    }
+    if (data.instanceType !== undefined) {
+        updates.push('instance_type = ?')
+        values.push(data.instanceType)
+    }
+    if (data.maxInstances !== undefined) {
+        updates.push('max_instances = ?')
+        values.push(data.maxInstances)
+    }
+    if (data.defaultPort !== undefined) {
+        updates.push('default_port = ?')
+        values.push(data.defaultPort)
+    }
+    if (data.sleepAfter !== undefined) {
+        updates.push('sleep_after = ?')
+        values.push(data.sleepAfter || null)
+    }
+    if (data.status !== undefined) {
+        updates.push('status = ?')
+        values.push(data.status)
+    }
+
+    if (updates.length === 0) {
+        return jsonResponse({ error: 'No fields to update' }, 400)
+    }
+
+    updates.push("modified_at = datetime('now')")
+    values.push(name) // For WHERE clause
+
+    const query = `UPDATE containers SET ${updates.join(', ')} WHERE name = ?`
+    const result = await env.METADATA.prepare(query).bind(...values).run()
+
+    if (result.meta.changes === 0) {
+        return jsonResponse({ error: 'Container not found' }, 404)
+    }
+
+    return jsonResponse({ success: true, containerName: name })
+}
+
 
 /**
  * Get a single container

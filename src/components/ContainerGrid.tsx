@@ -5,7 +5,8 @@ import { ContainerListView } from './ContainerListView'
 import { InstancesDialog } from './InstancesDialog'
 import { ContainerConfigPanel } from './ContainerConfigPanel'
 import { ContainerLogsPanel } from './ContainerLogsPanel'
-import { listContainers, performContainerAction } from '@/services/containerApi'
+import { ContainerEditDialog } from './ContainerEditDialog'
+import { listContainers, performContainerAction, deleteContainer } from '@/services/containerApi'
 import { copyToClipboard } from '@/lib/utils'
 import type { Container } from '@/types/container'
 
@@ -26,6 +27,9 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
     const [showInstances, setShowInstances] = useState(false)
     const [showConfig, setShowConfig] = useState(false)
     const [showLogs, setShowLogs] = useState(false)
+    const [showEditDialog, setShowEditDialog] = useState(false)
+    const [editingContainer, setEditingContainer] = useState<Container | undefined>(undefined)
+
 
     const fetchContainers = useCallback(async (skipCache?: boolean): Promise<void> => {
         try {
@@ -86,6 +90,29 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
     const handleViewLogs = useCallback((container: Container): void => {
         setSelectedContainer(container)
         setShowLogs(true)
+    }, [])
+
+    const handleEdit = useCallback((container: Container): void => {
+        setEditingContainer(container)
+        setShowEditDialog(true)
+    }, [])
+
+    const handleDelete = useCallback(async (container: Container): Promise<void> => {
+        if (!confirm(`Delete container "${container.class.name}"? This only removes it from the registry, not from Cloudflare.`)) {
+            return
+        }
+        try {
+            await deleteContainer(container.class.name)
+            void fetchContainers(true)
+        } catch (err) {
+            // eslint-disable-next-line no-console
+            console.error('Failed to delete container:', err)
+        }
+    }, [fetchContainers])
+
+    const handleCreateNew = useCallback((): void => {
+        setEditingContainer(undefined)
+        setShowEditDialog(true)
     }, [])
 
     // Filter containers by search query
@@ -161,10 +188,13 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                     Refresh
                 </button>
 
-                {/* Create (placeholder) */}
-                <button className="flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+                {/* Register new container */}
+                <button
+                    onClick={handleCreateNew}
+                    className="flex items-center gap-2 px-3 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
                     <Plus className="h-4 w-4" />
-                    Deploy
+                    Register
                 </button>
             </div>
 
@@ -201,6 +231,8 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                             onCopyName={() => void handleCopyName(container.class.name)}
                             onConfigure={() => handleConfigure(container)}
                             onViewLogs={() => handleViewLogs(container)}
+                            onEdit={() => handleEdit(container)}
+                            onDelete={() => void handleDelete(container)}
                             {...(container.color !== undefined && { color: container.color })}
                             {...(container.class.sleepAfter !== undefined && { sleepAfter: container.class.sleepAfter })}
                         />
@@ -249,6 +281,17 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                     }}
                 />
             )}
+
+            {/* Edit/Create dialog */}
+            <ContainerEditDialog
+                isOpen={showEditDialog}
+                onClose={() => {
+                    setShowEditDialog(false)
+                    setEditingContainer(undefined)
+                }}
+                onSuccess={() => void fetchContainers(true)}
+                container={editingContainer}
+            />
         </div>
     )
 }
