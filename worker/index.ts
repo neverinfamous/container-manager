@@ -233,6 +233,36 @@ async function handleApiRequest(
             return handleTestWebhook(webhookTestMatch[1])
         }
 
+        // Snapshots routes
+        if (path === '/api/snapshots' && request.method === 'GET') {
+            return handleGetSnapshots()
+        }
+
+        if (path === '/api/snapshots' && request.method === 'POST') {
+            const body = await request.json() as Record<string, unknown>
+            return handleCreateSnapshot(body)
+        }
+
+        if (path === '/api/snapshots/stats' && request.method === 'GET') {
+            return handleSnapshotStats()
+        }
+
+        const snapshotMatch = /^\/api\/snapshots\/([^/]+)$/.exec(path)
+        if (snapshotMatch?.[1] !== undefined) {
+            if (request.method === 'GET') {
+                return handleGetSnapshot(snapshotMatch[1])
+            }
+            if (request.method === 'DELETE') {
+                return handleDeleteSnapshot(snapshotMatch[1])
+            }
+        }
+
+        const snapshotRestoreMatch = /^\/api\/snapshots\/([^/]+)\/restore$/.exec(path)
+        if (snapshotRestoreMatch?.[1] !== undefined && request.method === 'POST') {
+            const body = await request.json() as Record<string, unknown>
+            return handleRestoreSnapshot(snapshotRestoreMatch[1], body)
+        }
+
         // Migrations status
         if (path === '/api/migrations/status') {
             const result = await env.METADATA.prepare(
@@ -1073,6 +1103,131 @@ function handleGetWebhookDeliveries(webhookId: string): Response {
 
 function handleTestWebhook(id: string): Response {
     return jsonResponse({ success: true, webhookId: id })
+}
+
+// Mock snapshots data
+const mockSnapshots = [
+    {
+        id: 'snap-1',
+        containerName: 'api-gateway',
+        name: 'before-deploy-v2',
+        description: 'Snapshot before version 2.0 deployment',
+        status: 'ready',
+        trigger: 'manual',
+        createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+        createdBy: 'admin',
+        size: 4520,
+        r2Key: 'snapshots/api-gateway/snap-1.json',
+        config: {
+            instanceType: 'standard-1',
+            maxInstances: 4,
+            sleepAfter: 600,
+            defaultPort: 8080,
+            envVars: { NODE_ENV: 'production', LOG_LEVEL: 'info' },
+            healthCheck: { path: '/health', interval: 30, timeout: 5 },
+        },
+    },
+    {
+        id: 'snap-2',
+        containerName: 'user-service',
+        name: 'weekly-backup',
+        status: 'ready',
+        trigger: 'scheduled',
+        createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
+        size: 3240,
+        r2Key: 'snapshots/user-service/snap-2.json',
+        config: {
+            instanceType: 'standard-2',
+            maxInstances: 2,
+            defaultPort: 3000,
+            envVars: { NODE_ENV: 'production' },
+        },
+    },
+    {
+        id: 'snap-3',
+        containerName: 'api-gateway',
+        name: 'pre-migration',
+        description: 'Before database migration',
+        status: 'ready',
+        trigger: 'pre-deploy',
+        createdAt: new Date(Date.now() - 86400000 * 14).toISOString(),
+        size: 4100,
+        r2Key: 'snapshots/api-gateway/snap-3.json',
+        config: {
+            instanceType: 'standard-1',
+            maxInstances: 3,
+            sleepAfter: 600,
+            defaultPort: 8080,
+            envVars: { NODE_ENV: 'production', LOG_LEVEL: 'debug' },
+        },
+    },
+]
+
+function handleGetSnapshots(): Response {
+    return jsonResponse({
+        snapshots: mockSnapshots,
+        total: mockSnapshots.length,
+    })
+}
+
+function handleGetSnapshot(id: string): Response {
+    const snapshot = mockSnapshots.find(s => s.id === id)
+    if (!snapshot) {
+        return jsonResponse({ error: 'Snapshot not found' }, 404)
+    }
+    return jsonResponse(snapshot)
+}
+
+function handleCreateSnapshot(_body: unknown): Response {
+    return jsonResponse({
+        id: `snap-${Date.now()}`,
+        ...(_body as object),
+        status: 'creating',
+        createdAt: new Date().toISOString(),
+        size: 0,
+        r2Key: `snapshots/temp/snap-${Date.now()}.json`,
+        config: {
+            instanceType: 'standard-1',
+            maxInstances: 1,
+            envVars: {},
+        },
+    })
+}
+
+function handleDeleteSnapshot(id: string): Response {
+    return jsonResponse({ success: true, snapshotId: id })
+}
+
+function handleSnapshotStats(): Response {
+    const oldest = mockSnapshots[mockSnapshots.length - 1]
+    const newest = mockSnapshots[0]
+    return jsonResponse({
+        totalSnapshots: mockSnapshots.length,
+        totalSize: mockSnapshots.reduce((sum, s) => sum + s.size, 0),
+        oldestSnapshot: oldest?.createdAt,
+        newestSnapshot: newest?.createdAt,
+        containerCounts: [
+            { containerName: 'api-gateway', count: 2 },
+            { containerName: 'user-service', count: 1 },
+        ],
+    })
+}
+
+function handleRestoreSnapshot(id: string, _options: unknown): Response {
+    const snapshot = mockSnapshots.find(s => s.id === id)
+    if (!snapshot) {
+        return jsonResponse({ error: 'Snapshot not found' }, 404)
+    }
+    return jsonResponse({
+        success: true,
+        snapshotId: id,
+        containerName: snapshot.containerName,
+        restoredAt: new Date().toISOString(),
+        changes: [
+            { field: 'maxInstances', oldValue: 2, newValue: snapshot.config.maxInstances },
+            { field: 'envVars.LOG_LEVEL', oldValue: 'warn', newValue: 'info' },
+        ],
+    })
 }
 
 /**

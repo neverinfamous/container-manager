@@ -1,12 +1,13 @@
-import { Container, Moon, Sun, Monitor, BarChart3, GitBranch, Clock } from 'lucide-react'
+import { Container, Moon, Sun, Monitor, BarChart3, GitBranch, Clock, Archive } from 'lucide-react'
 import { useTheme } from './hooks/useTheme'
 import { ContainerGrid } from './components/ContainerGrid'
 import { DependencyGraph } from './components/DependencyGraph'
 import { MetricsDashboard } from './components/MetricsDashboard'
 import { JobsPanel } from './components/JobsPanel'
+import { SnapshotsHub } from './components/SnapshotsHub'
 import { useState } from 'react'
 
-type Page = 'containers' | 'topology' | 'metrics' | 'jobs'
+type Page = 'containers' | 'topology' | 'metrics' | 'jobs' | 'snapshots'
 
 function App(): React.ReactNode {
     const { theme, setTheme } = useTheme()
@@ -63,6 +64,16 @@ function App(): React.ReactNode {
                             <Clock className="h-4 w-4" />
                             Jobs
                         </button>
+                        <button
+                            onClick={() => setCurrentPage('snapshots')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${currentPage === 'snapshots'
+                                ? 'bg-muted text-foreground'
+                                : 'text-foreground/60 hover:text-foreground hover:bg-muted/50'
+                                }`}
+                        >
+                            <Archive className="h-4 w-4" />
+                            Snapshots
+                        </button>
                     </nav>
 
                     <div className="ml-auto flex items-center gap-2">
@@ -118,6 +129,10 @@ function App(): React.ReactNode {
 
                 {currentPage === 'jobs' && (
                     <JobsPanel />
+                )}
+
+                {currentPage === 'snapshots' && (
+                    <SnapshotsHub />
                 )}
             </main>
         </div>
