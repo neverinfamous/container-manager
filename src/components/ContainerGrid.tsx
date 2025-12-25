@@ -6,6 +6,7 @@ import { InstancesDialog } from './InstancesDialog'
 import { ContainerConfigPanel } from './ContainerConfigPanel'
 import { ContainerLogsPanel } from './ContainerLogsPanel'
 import { ContainerEditDialog } from './ContainerEditDialog'
+import { ConfigGeneratorDialog } from './ConfigGeneratorDialog'
 import { listContainers, performContainerAction, deleteContainer } from '@/services/containerApi'
 import { copyToClipboard } from '@/lib/utils'
 import type { Container } from '@/types/container'
@@ -29,6 +30,8 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
     const [showLogs, setShowLogs] = useState(false)
     const [showEditDialog, setShowEditDialog] = useState(false)
     const [editingContainer, setEditingContainer] = useState<Container | undefined>(undefined)
+    const [showExportDialog, setShowExportDialog] = useState(false)
+    const [exportingContainer, setExportingContainer] = useState<Container | null>(null)
 
 
     const fetchContainers = useCallback(async (skipCache?: boolean): Promise<void> => {
@@ -113,6 +116,11 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
     const handleCreateNew = useCallback((): void => {
         setEditingContainer(undefined)
         setShowEditDialog(true)
+    }, [])
+
+    const handleExport = useCallback((container: Container): void => {
+        setExportingContainer(container)
+        setShowExportDialog(true)
     }, [])
 
     // Filter containers by search query
@@ -233,6 +241,7 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                             onViewLogs={() => handleViewLogs(container)}
                             onEdit={() => handleEdit(container)}
                             onDelete={() => void handleDelete(container)}
+                            onExport={() => handleExport(container)}
                             {...(container.color !== undefined && { color: container.color })}
                             {...(container.class.sleepAfter !== undefined && { sleepAfter: container.class.sleepAfter })}
                         />
@@ -292,6 +301,18 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                 onSuccess={() => void fetchContainers(true)}
                 container={editingContainer}
             />
+
+            {/* Config Generator dialog */}
+            {exportingContainer && (
+                <ConfigGeneratorDialog
+                    isOpen={showExportDialog}
+                    onClose={() => {
+                        setShowExportDialog(false)
+                        setExportingContainer(null)
+                    }}
+                    container={exportingContainer}
+                />
+            )}
         </div>
     )
 }

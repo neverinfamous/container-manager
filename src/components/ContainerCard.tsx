@@ -14,6 +14,7 @@ import {
     Terminal,
     Pencil,
     Trash2,
+    Code,
 } from 'lucide-react'
 
 interface ContainerCardProps {
@@ -34,6 +35,7 @@ interface ContainerCardProps {
     onViewLogs?: () => void
     onEdit?: () => void
     onDelete?: () => void
+    onExport?: () => void
 }
 
 const statusColors: Record<ContainerStatus, string> = {
@@ -72,6 +74,7 @@ export function ContainerCard({
     onViewLogs,
     onEdit,
     onDelete,
+    onExport,
 }: ContainerCardProps): React.ReactNode {
     const specs = INSTANCE_SPECS[instanceType]
 
@@ -204,6 +207,14 @@ export function ContainerCard({
                         title="Configure"
                     >
                         <Settings className="h-4 w-4" />
+                    </button>
+
+                    <button
+                        onClick={onExport}
+                        className="p-1.5 rounded-md hover:bg-muted transition-colors text-blue-500"
+                        title="Export Configuration"
+                    >
+                        <Code className="h-4 w-4" />
                     </button>
 
                     <button

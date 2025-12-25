@@ -114,6 +114,12 @@ wrangler d1 execute container-manager-metadata --remote --command="INSERT INTO c
 - 📋 Job history with filtering
 - 🔐 HMAC signing support
 
+### Config Generator
+- 📤 **Export wrangler.toml** configuration snippets
+- 📄 **Generate TypeScript class** code for containers
+- 🐳 **Dockerfile templates** for quick deployment
+- 📋 One-click copy to clipboard
+
 ---
 
 ## 🚀 Quick Start
