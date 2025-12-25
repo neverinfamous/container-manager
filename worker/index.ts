@@ -165,6 +165,19 @@ async function handleApiRequest(
             return await handleSavePositions(body, env)
         }
 
+        // Metrics routes
+        if (path === '/api/metrics/dashboard' && request.method === 'GET') {
+            const range = url.searchParams.get('range') ?? '1h'
+            return handleDashboardMetrics(range)
+        }
+
+        const containerMetricsMatch = /^\/api\/containers\/([^/]+)\/metrics$/.exec(path)
+        if (containerMetricsMatch?.[1] !== undefined && request.method === 'GET') {
+            const name = decodeURIComponent(containerMetricsMatch[1])
+            const range = url.searchParams.get('range') ?? '1h'
+            return handleContainerMetrics(name, range)
+        }
+
         // Job history
         if (path === '/api/jobs') {
             const result = await env.METADATA.prepare(
@@ -706,7 +719,7 @@ async function handleSavePositions(
     env: Env
 ): Promise<Response> {
     // Log positions for demo
-     
+
     console.log('Saving positions:', positions)
 
     // In production, would save to D1
@@ -721,6 +734,109 @@ async function handleSavePositions(
     }
 
     return jsonResponse({ success: true })
+}
+
+/**
+ * Generate mock time series data
+ */
+function generateTimeSeries(points: number, baseValue: number, variance: number): { timestamp: string; value: number }[] {
+    const now = Date.now()
+    const interval = 60000 // 1 minute
+    const data: { timestamp: string; value: number }[] = []
+
+    for (let i = points - 1; i >= 0; i--) {
+        const timestamp = new Date(now - i * interval).toISOString()
+        const value = Math.max(0, baseValue + (Math.random() - 0.5) * variance * 2)
+        data.push({ timestamp, value })
+    }
+
+    return data
+}
+
+/**
+ * Handle dashboard metrics (demo data)
+ */
+function handleDashboardMetrics(range: string): Response {
+    const pointsMap: Record<string, number> = {
+        '1h': 60,
+        '6h': 72,
+        '24h': 96,
+        '7d': 168,
+        '30d': 180,
+    }
+    const points = pointsMap[range] ?? 60
+
+    return jsonResponse({
+        aggregated: {
+            totalContainers: 7,
+            runningInstances: 12,
+            cpuUsage: 42.3,
+            memoryUsage: 58.7,
+            requestsPerMinute: 1247,
+            errorsPerMinute: 3,
+        },
+        topContainers: {
+            byCpu: [
+                { name: 'api-gateway', value: 65.2 },
+                { name: 'user-service', value: 48.1 },
+                { name: 'auth-service', value: 35.4 },
+                { name: 'worker', value: 22.8 },
+                { name: 'cache', value: 12.1 },
+            ],
+            byMemory: [
+                { name: 'database', value: 78.5 },
+                { name: 'user-service', value: 62.3 },
+                { name: 'api-gateway', value: 45.2 },
+                { name: 'auth-service', value: 38.9 },
+                { name: 'storage', value: 28.4 },
+            ],
+            byRequests: [
+                { name: 'api-gateway', value: 523 },
+                { name: 'auth-service', value: 312 },
+                { name: 'user-service', value: 245 },
+                { name: 'storage', value: 98 },
+                { name: 'cache', value: 67 },
+            ],
+        },
+        timeline: {
+            cpu: generateTimeSeries(points, 42, 20),
+            memory: generateTimeSeries(points, 58, 15),
+            requests: generateTimeSeries(points, 20, 10),
+        },
+    })
+}
+
+/**
+ * Handle container metrics (demo data)
+ */
+function handleContainerMetrics(name: string, range: string): Response {
+    const pointsMap: Record<string, number> = {
+        '1h': 60,
+        '6h': 72,
+        '24h': 96,
+        '7d': 168,
+        '30d': 180,
+    }
+    const points = pointsMap[range] ?? 60
+
+    return jsonResponse({
+        container: name,
+        range,
+        series: {
+            cpu: generateTimeSeries(points, 45, 25),
+            memory: generateTimeSeries(points, 55, 20),
+            requests: generateTimeSeries(points, 15, 8),
+            errors: generateTimeSeries(points, 0.5, 1),
+        },
+        current: {
+            containerName: name,
+            timestamp: new Date().toISOString(),
+            cpu: { usage: 45.2, limit: 100 },
+            memory: { used: 268435456, limit: 536870912, percentage: 50 },
+            network: { bytesIn: 1234567, bytesOut: 987654, requestsPerSecond: 15 },
+            instances: { total: 3, running: 2, sleeping: 1, errored: 0 },
+        },
+    })
 }
 
 /**

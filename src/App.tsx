@@ -2,6 +2,7 @@ import { Container, Moon, Sun, Monitor, BarChart3, GitBranch, Clock } from 'luci
 import { useTheme } from './hooks/useTheme'
 import { ContainerGrid } from './components/ContainerGrid'
 import { DependencyGraph } from './components/DependencyGraph'
+import { MetricsDashboard } from './components/MetricsDashboard'
 import { useState } from 'react'
 
 type Page = 'containers' | 'topology' | 'metrics' | 'jobs'
@@ -111,18 +112,7 @@ function App(): React.ReactNode {
                 )}
 
                 {currentPage === 'metrics' && (
-                    <div className="flex flex-col gap-6">
-                        <div className="flex flex-col gap-2">
-                            <h1 className="text-3xl font-bold tracking-tight">Metrics</h1>
-                            <p className="text-muted-foreground">
-                                Monitor container performance and resource usage
-                            </p>
-                        </div>
-                        <div className="rounded-lg border bg-muted/50 p-8 text-center text-muted-foreground">
-                            <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                            <p>Metrics dashboard coming in Phase 8</p>
-                        </div>
-                    </div>
+                    <MetricsDashboard />
                 )}
 
                 {currentPage === 'jobs' && (
