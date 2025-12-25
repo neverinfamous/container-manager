@@ -22,6 +22,9 @@ export interface Env {
     API_KEY: string
     TEAM_DOMAIN: string
     POLICY_AUD: string
+
+    // Optional: Custom worker URL for health checks
+    WORKER_URL?: string
 }
 
 /**

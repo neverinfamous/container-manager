@@ -626,9 +626,12 @@ async function handleContainerHealthCheck(
     }
 
     // Build the health check URL
-    // For now, we use the worker_name as the base URL if available
-    // In production, this would be the container's actual endpoint
+    // For Cloudflare Containers, the container runs through the worker
+    // We need either a custom health URL or to invoke the container directly
     const workerName = result.worker_name
+    const image = result.image
+
+    // If no worker name configured, we can't perform health check
     if (!workerName) {
         return jsonResponse({
             status: 'unknown',
@@ -640,7 +643,29 @@ async function handleContainerHealthCheck(
     }
 
     try {
-        const healthUrl = `https://${workerName}.${env.ACCOUNT_ID ?? 'yoursubdomain'}.workers.dev${path}`
+        // Use the current request's origin to build health URL
+        // This assumes the container is accessible via the same domain
+        // In production, this would need a custom health_url field in the container config
+        const workerUrl: string = (env.WORKER_URL !== undefined && env.WORKER_URL.length > 0)
+            ? env.WORKER_URL
+            : `https://${workerName}.workers.dev`
+        const requestUrl = new URL(workerUrl)
+
+        // For containers, try to reach them via a /container/:name path or direct endpoint
+        // If the container has an image that looks like a Dockerfile path, 
+        // we might not have a direct URL to check - return informative status
+        if (image?.includes('Dockerfile')) {
+            return jsonResponse({
+                status: 'unknown',
+                statusCode: null,
+                latencyMs: null,
+                lastChecked: new Date().toISOString(),
+                error: 'Container uses Dockerfile image - no direct health endpoint. Configure a health_url in container settings.',
+            })
+        }
+
+        // Try to reach the health endpoint via the worker
+        const healthUrl = `${requestUrl.origin}/container/${encodeURIComponent(name)}${path}`
         const startTime = Date.now()
 
         const controller = new AbortController()
