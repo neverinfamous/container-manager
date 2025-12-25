@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, LayoutGrid, List, RefreshCw, Plus } from 'lucide-react'
+import { Search, LayoutGrid, List, RefreshCw, Plus, Layout } from 'lucide-react'
 import { ContainerCard } from './ContainerCard'
 import { ContainerListView } from './ContainerListView'
 import { InstancesDialog } from './InstancesDialog'
@@ -7,9 +7,11 @@ import { ContainerConfigPanel } from './ContainerConfigPanel'
 import { ContainerLogsPanel } from './ContainerLogsPanel'
 import { ContainerEditDialog } from './ContainerEditDialog'
 import { ConfigGeneratorDialog } from './ConfigGeneratorDialog'
+import { TemplateGalleryDialog } from './TemplateGalleryDialog'
 import { listContainers, performContainerAction, deleteContainer } from '@/services/containerApi'
 import { copyToClipboard } from '@/lib/utils'
 import type { Container } from '@/types/container'
+import type { ContainerTemplate } from '@/data/templates'
 
 type ViewMode = 'grid' | 'list'
 
@@ -32,6 +34,8 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
     const [editingContainer, setEditingContainer] = useState<Container | undefined>(undefined)
     const [showExportDialog, setShowExportDialog] = useState(false)
     const [exportingContainer, setExportingContainer] = useState<Container | null>(null)
+    const [showTemplateGallery, setShowTemplateGallery] = useState(false)
+    const [selectedTemplate, setSelectedTemplate] = useState<ContainerTemplate | undefined>(undefined)
 
 
     const fetchContainers = useCallback(async (skipCache?: boolean): Promise<void> => {
@@ -123,6 +127,12 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
         setShowExportDialog(true)
     }, [])
 
+    const handleSelectTemplate = useCallback((template: ContainerTemplate): void => {
+        setSelectedTemplate(template)
+        setEditingContainer(undefined)
+        setShowEditDialog(true)
+    }, [])
+
     // Filter containers by search query
     const filteredContainers = containers.filter((container) =>
         container.class.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -194,6 +204,15 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                 >
                     <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
                     Refresh
+                </button>
+
+                {/* Templates gallery */}
+                <button
+                    onClick={() => setShowTemplateGallery(true)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-md border border-purple-500/50 text-purple-400 hover:bg-purple-500/10 transition-colors"
+                >
+                    <Layout className="h-4 w-4" />
+                    Templates
                 </button>
 
                 {/* Register new container */}
@@ -297,9 +316,11 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                 onClose={() => {
                     setShowEditDialog(false)
                     setEditingContainer(undefined)
+                    setSelectedTemplate(undefined)
                 }}
                 onSuccess={() => void fetchContainers(true)}
                 container={editingContainer}
+                template={selectedTemplate}
             />
 
             {/* Config Generator dialog */}
@@ -313,6 +334,13 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                     container={exportingContainer}
                 />
             )}
+
+            {/* Template Gallery dialog */}
+            <TemplateGalleryDialog
+                isOpen={showTemplateGallery}
+                onClose={() => setShowTemplateGallery(false)}
+                onSelectTemplate={handleSelectTemplate}
+            />
         </div>
     )
 }

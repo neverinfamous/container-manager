@@ -10,12 +10,14 @@ import {
     type ContainerRegistration,
 } from '@/services/containerApi'
 import type { Container } from '@/types/container'
+import type { ContainerTemplate } from '@/data/templates'
 
 interface ContainerEditDialogProps {
     isOpen: boolean
     onClose: () => void
     onSuccess: () => void
     container: Container | undefined // If provided, we're editing; otherwise creating
+    template: ContainerTemplate | undefined // If provided, pre-fill from template
 }
 
 const INSTANCE_TYPES = [
@@ -37,6 +39,7 @@ export function ContainerEditDialog({
     onClose,
     onSuccess,
     container,
+    template,
 }: ContainerEditDialogProps): React.ReactNode {
     const isEditing = !!container
 
@@ -55,7 +58,7 @@ export function ContainerEditDialog({
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    // Populate form when editing
+    // Populate form when editing or from template
     useEffect(() => {
         if (container) {
             setName(container.class.name)
@@ -67,6 +70,17 @@ export function ContainerEditDialog({
             setDefaultPort(container.class.defaultPort ?? 8080)
             setSleepAfter(container.class.sleepAfter ?? '')
             setStatus(container.status ?? 'stopped')
+        } else if (template) {
+            // Pre-fill from template
+            setName('')
+            setClassName(template.name.replace(/[\s.]+/g, ''))
+            setWorkerName('')
+            setImage(`./containers/my-${template.id}/Dockerfile`)
+            setInstanceType(template.instanceType)
+            setMaxInstances(5)
+            setDefaultPort(template.defaultPort)
+            setSleepAfter(template.sleepAfter)
+            setStatus('stopped')
         } else {
             // Reset form for new container
             setName('')
@@ -80,7 +94,7 @@ export function ContainerEditDialog({
             setStatus('stopped')
         }
         setError(null)
-    }, [container, isOpen])
+    }, [container, template, isOpen])
 
     const handleSubmit = async (e: React.FormEvent): Promise<void> => {
         e.preventDefault()

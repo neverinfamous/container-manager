@@ -120,6 +120,12 @@ wrangler d1 execute container-manager-metadata --remote --command="INSERT INTO c
 - 🐳 **Dockerfile templates** for quick deployment
 - 📋 One-click copy to clipboard
 
+### Template Gallery
+- 📦 **Pre-built Dockerfiles** for common runtimes
+- 🟢 Node.js, 🐍 Python, 🔵 Go, 🍞 Bun, 🦕 Deno, 📁 nginx
+- 👀 **Preview Dockerfiles** before deploying
+- ⚡ **One-click setup** pre-fills container registration
+
 ---
 
 ## 🚀 Quick Start
