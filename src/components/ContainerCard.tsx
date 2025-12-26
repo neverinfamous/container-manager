@@ -157,7 +157,7 @@ export function ContainerCard({
                 </div>
 
                 {/* Actions */}
-                <div className="mt-4 flex items-center gap-2 border-t pt-3 overflow-x-auto">
+                <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3">
                     {status === 'running' || status === 'starting' ? (
                         <>
                             <button
@@ -190,59 +190,62 @@ export function ContainerCard({
 
                     <button
                         onClick={onViewInstances}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md hover:bg-muted transition-colors ml-auto"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md hover:bg-muted transition-colors"
                     >
                         <Server className="h-4 w-4" />
                         Instances
                     </button>
 
-                    <button
-                        onClick={onViewLogs}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                        title="View Logs"
-                    >
-                        <Terminal className="h-4 w-4" />
-                    </button>
+                    {/* Icon-only actions grouped to wrap together */}
+                    <div className="flex items-center gap-1 ml-auto">
+                        <button
+                            onClick={onViewLogs}
+                            className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                            title="View Logs"
+                        >
+                            <Terminal className="h-4 w-4" />
+                        </button>
 
-                    <button
-                        onClick={onConfigure}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                        title="Configure"
-                    >
-                        <Settings className="h-4 w-4" />
-                    </button>
+                        <button
+                            onClick={onConfigure}
+                            className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                            title="Configure"
+                        >
+                            <Settings className="h-4 w-4" />
+                        </button>
 
-                    <button
-                        onClick={onExport}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors text-blue-500"
-                        title="Export Configuration"
-                    >
-                        <Code className="h-4 w-4" />
-                    </button>
+                        <button
+                            onClick={onExport}
+                            className="p-1.5 rounded-md hover:bg-muted transition-colors text-blue-500"
+                            title="Export Configuration"
+                        >
+                            <Code className="h-4 w-4" />
+                        </button>
 
-                    <button
-                        onClick={onHealth}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors text-red-400"
-                        title="Health Probe"
-                    >
-                        <Heart className="h-4 w-4" />
-                    </button>
+                        <button
+                            onClick={onHealth}
+                            className="p-1.5 rounded-md hover:bg-muted transition-colors text-red-400"
+                            title="Health Probe"
+                        >
+                            <Heart className="h-4 w-4" />
+                        </button>
 
-                    <button
-                        onClick={onEdit}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors"
-                        title="Edit Registration"
-                    >
-                        <Pencil className="h-4 w-4" />
-                    </button>
+                        <button
+                            onClick={onEdit}
+                            className="p-1.5 rounded-md hover:bg-muted transition-colors"
+                            title="Edit Registration"
+                        >
+                            <Pencil className="h-4 w-4" />
+                        </button>
 
-                    <button
-                        onClick={onDelete}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors text-destructive"
-                        title="Delete Registration"
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </button>
+                        <button
+                            onClick={onDelete}
+                            className="p-1.5 rounded-md hover:bg-muted transition-colors text-destructive"
+                            title="Delete Registration"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
