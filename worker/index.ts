@@ -600,19 +600,16 @@ async function handleContainerHealthCheck(
     params: URLSearchParams,
     env: Env
 ): Promise<Response> {
-    const path = params.get('path') ?? '/health'
-    const expectedStatus = parseInt(params.get('expectedStatus') ?? '200', 10)
-    const timeoutMs = parseInt(params.get('timeoutMs') ?? '5000', 10)
-
-    // Get container from D1 to find its URL
+    // Get container from D1 to find its URL and health config
     interface ContainerRow {
         name: string
         image: string | null
         worker_name: string | null
+        metadata: string | null
     }
 
     const result = await env.METADATA.prepare(
-        'SELECT name, image, worker_name FROM containers WHERE name = ?'
+        'SELECT name, image, worker_name, metadata FROM containers WHERE name = ?'
     ).bind(name).first<ContainerRow>()
 
     if (!result) {
@@ -625,47 +622,68 @@ async function handleContainerHealthCheck(
         })
     }
 
-    // Build the health check URL
-    // For Cloudflare Containers, the container runs through the worker
-    // We need either a custom health URL or to invoke the container directly
-    const workerName = result.worker_name
-    const image = result.image
-
-    // If no worker name configured, we can't perform health check
-    if (!workerName) {
-        return jsonResponse({
-            status: 'unknown',
-            statusCode: null,
-            latencyMs: null,
-            lastChecked: new Date().toISOString(),
-            error: 'No worker URL configured for this container',
-        })
+    // Parse metadata to get health config
+    let healthConfig: { endpoint?: string } = {}
+    if (result.metadata !== null && result.metadata.length > 0) {
+        try {
+            const metadata = JSON.parse(result.metadata) as Record<string, unknown>
+            healthConfig = (metadata['healthCheck'] as { endpoint?: string }) ?? {}
+        } catch {
+            // Ignore parse errors
+        }
     }
 
-    try {
-        // Use the current request's origin to build health URL
-        // This assumes the container is accessible via the same domain
-        // In production, this would need a custom health_url field in the container config
-        const workerUrl: string = (env.WORKER_URL !== undefined && env.WORKER_URL.length > 0)
-            ? env.WORKER_URL
-            : `https://${workerName}.workers.dev`
-        const requestUrl = new URL(workerUrl)
+    // Get health check parameters - prefer saved config over query params
+    const savedEndpoint = healthConfig.endpoint
+    const paramPath = params.get('path') ?? '/health'
+    const expectedStatus = parseInt(params.get('expectedStatus') ?? '200', 10)
+    const timeoutMs = parseInt(params.get('timeoutMs') ?? '5000', 10)
 
-        // For containers, try to reach them via a /container/:name path or direct endpoint
-        // If the container has an image that looks like a Dockerfile path, 
-        // we might not have a direct URL to check - return informative status
-        if (image?.includes('Dockerfile')) {
+    // Determine the health URL to use
+    // If saved endpoint starts with http, use it as a full URL
+    // Otherwise, use it as a path
+    let healthUrl: string
+
+    if (savedEndpoint?.startsWith('http')) {
+        // Use the full URL directly (append path if needed)
+        healthUrl = savedEndpoint
+    } else {
+        // Build URL from worker name and path
+        const workerName = result.worker_name
+        const image = result.image
+
+        // If no worker name configured, we can't perform health check
+        if (!workerName) {
             return jsonResponse({
                 status: 'unknown',
                 statusCode: null,
                 latencyMs: null,
                 lastChecked: new Date().toISOString(),
-                error: 'Container uses Dockerfile image - no direct health endpoint. Configure a health_url in container settings.',
+                error: 'No worker URL configured for this container',
             })
         }
 
-        // Try to reach the health endpoint via the worker
-        const healthUrl = `${requestUrl.origin}/container/${encodeURIComponent(name)}${path}`
+        // For containers with Dockerfile images and no custom URL, return informative message
+        if (image?.includes('Dockerfile') && !savedEndpoint) {
+            return jsonResponse({
+                status: 'unknown',
+                statusCode: null,
+                latencyMs: null,
+                lastChecked: new Date().toISOString(),
+                error: 'Container uses Dockerfile image - no direct health endpoint. Configure a health URL in container settings.',
+            })
+        }
+
+        // Build URL from worker URL and path
+        const workerUrl: string = (env.WORKER_URL !== undefined && env.WORKER_URL.length > 0)
+            ? env.WORKER_URL
+            : `https://${workerName}.workers.dev`
+
+        const path = savedEndpoint ?? paramPath
+        healthUrl = `${workerUrl}${path}`
+    }
+
+    try {
         const startTime = Date.now()
 
         const controller = new AbortController()
@@ -687,6 +705,7 @@ async function handleContainerHealthCheck(
             latencyMs,
             lastChecked: new Date().toISOString(),
             error: isHealthy ? null : `Expected status ${expectedStatus}, got ${response.status}`,
+            url: healthUrl,
         })
     } catch (err) {
         return jsonResponse({
@@ -695,6 +714,7 @@ async function handleContainerHealthCheck(
             latencyMs: null,
             lastChecked: new Date().toISOString(),
             error: err instanceof Error ? err.message : 'Health check failed',
+            url: healthUrl,
         })
     }
 }
