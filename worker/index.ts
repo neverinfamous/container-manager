@@ -574,23 +574,37 @@ async function handleListContainers(env: Env): Promise<Response> {
         'SELECT * FROM containers ORDER BY name'
     ).all<ContainerRow>()
 
-    const containers = (result.results ?? []).map(row => ({
-        class: {
-            name: row.name,
-            className: row.class_name,
-            workerName: row.worker_name,
-            image: row.image,
-            instanceType: row.instance_type,
-            maxInstances: row.max_instances,
-            defaultPort: row.default_port,
-            sleepAfter: row.sleep_after,
-            createdAt: row.created_at,
-            modifiedAt: row.modified_at,
-        },
-        instances: [], // Instance data would come from container runtime
-        status: row.status,
-        color: colorMap.get(row.name),
-    }))
+    // Check HelloWorld container status by pinging it
+    const helloWorldRunning = await checkHelloWorldStatus(env)
+
+    const containers = (result.results ?? []).map(row => {
+        // For hello-world container, use real ping status
+        const instances = row.name === 'hello-world' && helloWorldRunning
+            ? [{
+                id: 'default',
+                status: 'running',
+                startedAt: new Date().toISOString(),
+            }]
+            : []
+
+        return {
+            class: {
+                name: row.name,
+                className: row.class_name,
+                workerName: row.worker_name,
+                image: row.image,
+                instanceType: row.instance_type,
+                maxInstances: row.max_instances,
+                defaultPort: row.default_port,
+                sleepAfter: row.sleep_after,
+                createdAt: row.created_at,
+                modifiedAt: row.modified_at,
+            },
+            instances,
+            status: row.status,
+            color: colorMap.get(row.name),
+        }
+    })
 
     return jsonResponse({
         containers,
@@ -599,6 +613,39 @@ async function handleListContainers(env: Env): Promise<Response> {
             ? 'No containers registered. Use the "Deploy" button or POST /api/containers/register to add containers.'
             : undefined,
     })
+}
+
+/**
+ * Check if HelloWorld container instance is running
+ * Does a quick ping with timeout to determine status
+ */
+async function checkHelloWorldStatus(env: Env): Promise<boolean> {
+    try {
+        const id = env.HELLO_WORLD.idFromName('default')
+        const container = env.HELLO_WORLD.get(id)
+
+        // Create a simple request to ping the container
+        // Use AbortController for timeout
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 2000) // 2 second timeout
+
+        try {
+            const response = await container.fetch(new Request('http://container/ping', {
+                signal: controller.signal,
+            }))
+            clearTimeout(timeoutId)
+            // Any response (even error) means container is running
+            return response.status >= 0
+        } catch {
+            clearTimeout(timeoutId)
+            // AbortError means timeout - container might be starting
+            // Other errors mean container is not running
+            return false
+        }
+    } catch {
+        // Container binding error - not running
+        return false
+    }
 }
 
 /**
