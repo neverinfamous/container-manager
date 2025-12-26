@@ -133,10 +133,15 @@ wrangler d1 execute container-manager-metadata --remote --command="INSERT INTO c
 - 🔗 **Documentation links** for each step
 
 ### Health Probes
-- ❤️ **HTTP health checks** to container endpoints
-- ⚙️ **Configurable** path, expected status, timeout
+- ❤️ **HTTP health checks** to any configured endpoint
+- ⚙️ **Configurable** in Container Configuration → Health tab
+  - Custom health URL (paths like `/health` or full URLs)
+  - Expected status code (default: 200)
+  - Timeout and check intervals
 - ⏱️ **Real-time latency** measurement
 - 🔄 **Check Now** button for on-demand probes
+- 💾 **Settings persist** to D1 database
+- 🔗 **Built-in endpoint** at `/health` and `/api/health`
 
 ---
 
