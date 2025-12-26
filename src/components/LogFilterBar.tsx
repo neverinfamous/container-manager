@@ -59,6 +59,7 @@ export function LogFilterBar({
             <div className="relative flex-1 min-w-48">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
+                    id="log-search"
                     type="text"
                     value={filter.search}
                     onChange={(e) => onChange({ ...filter, search: e.target.value })}
@@ -107,6 +108,7 @@ export function LogFilterBar({
             {/* Instance filter */}
             {instanceIds.length > 0 && (
                 <select
+                    id="log-instance-filter"
                     value={filter.instanceId ?? ''}
                     onChange={(e) => {
                         const value = e.target.value

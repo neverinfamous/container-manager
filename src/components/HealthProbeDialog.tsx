@@ -92,8 +92,9 @@ export function HealthProbeDialog({
                     {/* Configuration */}
                     <div className="space-y-3">
                         <div>
-                            <label className="block text-sm text-zinc-400 mb-1">Health Path</label>
+                            <label htmlFor="health-path" className="block text-sm text-zinc-400 mb-1">Health Path</label>
                             <input
+                                id="health-path"
                                 type="text"
                                 value={config.path}
                                 onChange={(e) => setConfig({ ...config, path: e.target.value })}
@@ -104,8 +105,9 @@ export function HealthProbeDialog({
 
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="block text-sm text-zinc-400 mb-1">Expected Status</label>
+                                <label htmlFor="health-expected-status" className="block text-sm text-zinc-400 mb-1">Expected Status</label>
                                 <input
+                                    id="health-expected-status"
                                     type="number"
                                     value={config.expectedStatus}
                                     onChange={(e) => setConfig({ ...config, expectedStatus: parseInt(e.target.value) || 200 })}
@@ -113,8 +115,9 @@ export function HealthProbeDialog({
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm text-zinc-400 mb-1">Timeout (ms)</label>
+                                <label htmlFor="health-timeout" className="block text-sm text-zinc-400 mb-1">Timeout (ms)</label>
                                 <input
+                                    id="health-timeout"
                                     type="number"
                                     value={config.timeoutMs}
                                     onChange={(e) => setConfig({ ...config, timeoutMs: parseInt(e.target.value) || 5000 })}
@@ -137,10 +140,10 @@ export function HealthProbeDialog({
                     {/* Result */}
                     {result && (
                         <div className={`border rounded-lg p-4 ${result.status === 'healthy'
-                                ? 'bg-green-500/10 border-green-500/30'
-                                : result.status === 'unhealthy'
-                                    ? 'bg-red-500/10 border-red-500/30'
-                                    : 'bg-zinc-800 border-zinc-700'
+                            ? 'bg-green-500/10 border-green-500/30'
+                            : result.status === 'unhealthy'
+                                ? 'bg-red-500/10 border-red-500/30'
+                                : 'bg-zinc-800 border-zinc-700'
                             }`}>
                             <div className="flex items-center gap-2 mb-2">
                                 {result.status === 'healthy' ? (
@@ -151,7 +154,7 @@ export function HealthProbeDialog({
                                     <HelpCircle className="w-5 h-5 text-zinc-400" />
                                 )}
                                 <span className={`font-medium ${result.status === 'healthy' ? 'text-green-400' :
-                                        result.status === 'unhealthy' ? 'text-red-400' : 'text-zinc-400'
+                                    result.status === 'unhealthy' ? 'text-red-400' : 'text-zinc-400'
                                     }`}>
                                     {result.status.charAt(0).toUpperCase() + result.status.slice(1)}
                                 </span>

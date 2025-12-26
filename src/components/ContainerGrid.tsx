@@ -180,6 +180,7 @@ export function ContainerGrid({ onContainerSelect }: ContainerGridProps): React.
                 <div className="relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <input
+                        id="container-search"
                         type="text"
                         placeholder="Search containers..."
                         value={searchQuery}

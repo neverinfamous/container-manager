@@ -191,8 +191,9 @@ export function SnapshotsHub(): React.ReactNode {
 
             {/* Filters */}
             <div className="flex items-center gap-4">
-                <label className="text-sm text-muted-foreground">Filter by container:</label>
+                <label htmlFor="snapshot-container-filter" className="text-sm text-muted-foreground">Filter by container:</label>
                 <select
+                    id="snapshot-container-filter"
                     value={containerFilter}
                     onChange={(e) => setContainerFilter(e.target.value)}
                     className="px-3 py-1.5 rounded border bg-background text-sm"
@@ -210,8 +211,9 @@ export function SnapshotsHub(): React.ReactNode {
                     <h3 className="font-semibold">Create Snapshot</h3>
                     <div className="grid gap-4 md:grid-cols-3">
                         <div>
-                            <label className="text-sm font-medium">Container</label>
+                            <label htmlFor="snapshot-container" className="text-sm font-medium">Container</label>
                             <input
+                                id="snapshot-container"
                                 type="text"
                                 value={createForm.containerName}
                                 onChange={(e) => setCreateForm({ ...createForm, containerName: e.target.value })}
@@ -220,8 +222,9 @@ export function SnapshotsHub(): React.ReactNode {
                             />
                         </div>
                         <div>
-                            <label className="text-sm font-medium">Snapshot Name</label>
+                            <label htmlFor="snapshot-name" className="text-sm font-medium">Snapshot Name</label>
                             <input
+                                id="snapshot-name"
                                 type="text"
                                 value={createForm.name}
                                 onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
@@ -230,8 +233,9 @@ export function SnapshotsHub(): React.ReactNode {
                             />
                         </div>
                         <div>
-                            <label className="text-sm font-medium">Description</label>
+                            <label htmlFor="snapshot-description" className="text-sm font-medium">Description</label>
                             <input
+                                id="snapshot-description"
                                 type="text"
                                 value={createForm.description}
                                 onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}

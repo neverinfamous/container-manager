@@ -173,10 +173,11 @@ export function ContainerEditDialog({
                     {/* Name (only for create) */}
                     {!isEditing && (
                         <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                            <label htmlFor="container-name" className="block text-sm font-medium text-zinc-300 mb-1">
                                 Container Name *
                             </label>
                             <input
+                                id="container-name"
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
@@ -192,10 +193,11 @@ export function ContainerEditDialog({
 
                     {/* Class Name */}
                     <div>
-                        <label className="block text-sm font-medium text-zinc-300 mb-1">
+                        <label htmlFor="class-name" className="block text-sm font-medium text-zinc-300 mb-1">
                             Class Name *
                         </label>
                         <input
+                            id="class-name"
                             type="text"
                             value={className}
                             onChange={(e) => setClassName(e.target.value)}
@@ -210,10 +212,11 @@ export function ContainerEditDialog({
 
                     {/* Worker Name */}
                     <div>
-                        <label className="block text-sm font-medium text-zinc-300 mb-1">
+                        <label htmlFor="worker-name" className="block text-sm font-medium text-zinc-300 mb-1">
                             Worker Name
                         </label>
                         <input
+                            id="worker-name"
                             type="text"
                             value={workerName}
                             onChange={(e) => setWorkerName(e.target.value)}
@@ -224,10 +227,11 @@ export function ContainerEditDialog({
 
                     {/* Image */}
                     <div>
-                        <label className="block text-sm font-medium text-zinc-300 mb-1">
+                        <label htmlFor="dockerfile-path" className="block text-sm font-medium text-zinc-300 mb-1">
                             Dockerfile Path / Image
                         </label>
                         <input
+                            id="dockerfile-path"
                             type="text"
                             value={image}
                             onChange={(e) => setImage(e.target.value)}
@@ -240,10 +244,11 @@ export function ContainerEditDialog({
                     <div className="grid grid-cols-2 gap-4">
                         {/* Instance Type */}
                         <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                            <label htmlFor="instance-type" className="block text-sm font-medium text-zinc-300 mb-1">
                                 Instance Type
                             </label>
                             <select
+                                id="instance-type"
                                 value={instanceType}
                                 onChange={(e) => setInstanceType(e.target.value)}
                                 className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
@@ -258,10 +263,11 @@ export function ContainerEditDialog({
 
                         {/* Max Instances */}
                         <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                            <label htmlFor="max-instances" className="block text-sm font-medium text-zinc-300 mb-1">
                                 Max Instances
                             </label>
                             <input
+                                id="max-instances"
                                 type="number"
                                 value={maxInstances}
                                 onChange={(e) => setMaxInstances(parseInt(e.target.value) || 1)}
@@ -273,10 +279,11 @@ export function ContainerEditDialog({
 
                         {/* Default Port */}
                         <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                            <label htmlFor="default-port" className="block text-sm font-medium text-zinc-300 mb-1">
                                 Default Port
                             </label>
                             <input
+                                id="default-port"
                                 type="number"
                                 value={defaultPort}
                                 onChange={(e) => setDefaultPort(parseInt(e.target.value) || 8080)}
@@ -288,10 +295,11 @@ export function ContainerEditDialog({
 
                         {/* Status */}
                         <div>
-                            <label className="block text-sm font-medium text-zinc-300 mb-1">
+                            <label htmlFor="container-status" className="block text-sm font-medium text-zinc-300 mb-1">
                                 Status
                             </label>
                             <select
+                                id="container-status"
                                 value={status}
                                 onChange={(e) => setStatus(e.target.value)}
                                 className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
@@ -307,10 +315,11 @@ export function ContainerEditDialog({
 
                     {/* Sleep After */}
                     <div>
-                        <label className="block text-sm font-medium text-zinc-300 mb-1">
+                        <label htmlFor="sleep-after" className="block text-sm font-medium text-zinc-300 mb-1">
                             Sleep After (e.g., "5m", "1h")
                         </label>
                         <input
+                            id="sleep-after"
                             type="text"
                             value={sleepAfter}
                             onChange={(e) => setSleepAfter(e.target.value)}

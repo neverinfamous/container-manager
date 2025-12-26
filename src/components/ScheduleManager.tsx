@@ -210,8 +210,9 @@ export function ScheduleManager(): React.ReactNode {
                     <h3 className="font-semibold">Create Schedule</h3>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         <div>
-                            <label className="text-sm font-medium">Container</label>
+                            <label htmlFor="schedule-container" className="text-sm font-medium">Container</label>
                             <input
+                                id="schedule-container"
                                 type="text"
                                 value={createForm.containerName}
                                 onChange={(e) => setCreateForm({ ...createForm, containerName: e.target.value })}
@@ -220,8 +221,9 @@ export function ScheduleManager(): React.ReactNode {
                             />
                         </div>
                         <div>
-                            <label className="text-sm font-medium">Schedule Name</label>
+                            <label htmlFor="schedule-name" className="text-sm font-medium">Schedule Name</label>
                             <input
+                                id="schedule-name"
                                 type="text"
                                 value={createForm.name}
                                 onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
@@ -230,8 +232,9 @@ export function ScheduleManager(): React.ReactNode {
                             />
                         </div>
                         <div>
-                            <label className="text-sm font-medium">Action</label>
+                            <label htmlFor="schedule-action" className="text-sm font-medium">Action</label>
                             <select
+                                id="schedule-action"
                                 value={createForm.action}
                                 onChange={(e) => setCreateForm({ ...createForm, action: e.target.value as ScheduleActionType })}
                                 className="w-full mt-1 px-3 py-2 rounded border bg-background"
@@ -244,8 +247,9 @@ export function ScheduleManager(): React.ReactNode {
                             </select>
                         </div>
                         <div>
-                            <label className="text-sm font-medium">Cron Expression</label>
+                            <label htmlFor="schedule-cron" className="text-sm font-medium">Cron Expression</label>
                             <select
+                                id="schedule-cron"
                                 value={createForm.cronExpression}
                                 onChange={(e) => setCreateForm({ ...createForm, cronExpression: e.target.value })}
                                 className="w-full mt-1 px-3 py-2 rounded border bg-background"
@@ -261,8 +265,9 @@ export function ScheduleManager(): React.ReactNode {
                             </p>
                         </div>
                         <div>
-                            <label className="text-sm font-medium">Timezone</label>
+                            <label htmlFor="schedule-timezone" className="text-sm font-medium">Timezone</label>
                             <select
+                                id="schedule-timezone"
                                 value={createForm.timezone}
                                 onChange={(e) => setCreateForm({ ...createForm, timezone: e.target.value })}
                                 className="w-full mt-1 px-3 py-2 rounded border bg-background"
@@ -273,8 +278,9 @@ export function ScheduleManager(): React.ReactNode {
                             </select>
                         </div>
                         <div>
-                            <label className="text-sm font-medium">Description</label>
+                            <label htmlFor="schedule-description" className="text-sm font-medium">Description</label>
                             <input
+                                id="schedule-description"
                                 type="text"
                                 value={createForm.description}
                                 onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
