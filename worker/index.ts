@@ -34,14 +34,32 @@ export default {
             })
         }
 
-        // HelloWorld container route - wakes and forwards to container
+        // HelloWorld container route - wakes, forwards, and logs for metrics
         if (url.pathname.startsWith('/hello-world')) {
-            const id = env.HELLO_WORLD.idFromName('default')
-            const container = env.HELLO_WORLD.get(id)
-            // Rewrite URL to container's expected format
-            const containerUrl = new URL(request.url)
-            containerUrl.pathname = url.pathname.replace('/hello-world', '') || '/'
-            return container.fetch(new Request(containerUrl, request))
+            const startTime = Date.now()
+            const containerPath = url.pathname.replace('/hello-world', '') || '/'
+
+            try {
+                const id = env.HELLO_WORLD.idFromName('default')
+                const container = env.HELLO_WORLD.get(id)
+                // Rewrite URL to container's expected format
+                const containerUrl = new URL(request.url)
+                containerUrl.pathname = containerPath
+                const response = await container.fetch(new Request(containerUrl, request))
+
+                // Log successful request (non-blocking)
+                ctx.waitUntil(logContainerRequest(env, 'hello-world', request.method, containerPath, response.status, Date.now() - startTime))
+
+                return response
+            } catch (error) {
+                // Log failed request
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+                ctx.waitUntil(logContainerRequest(env, 'hello-world', request.method, containerPath, 500, Date.now() - startTime, errorMessage))
+                return new Response(JSON.stringify({ error: 'Container error', message: errorMessage }), {
+                    status: 500,
+                    headers: { 'Content-Type': 'application/json' },
+                })
+            }
         }
 
         // Handle API routes
@@ -364,7 +382,7 @@ async function handleApiRequest(
         // Metrics routes
         if (path === '/api/metrics/dashboard' && request.method === 'GET') {
             const range = url.searchParams.get('range') ?? '1h'
-            return handleDashboardMetrics(range)
+            return await handleDashboardMetrics(env, range)
         }
 
         const containerMetricsMatch = /^\/api\/containers\/([^/]+)\/metrics$/.exec(path)
@@ -645,6 +663,29 @@ async function checkHelloWorldStatus(env: Env): Promise<boolean> {
     } catch {
         // Container binding error - not running
         return false
+    }
+}
+
+/**
+ * Log a container request to D1 for metrics tracking
+ */
+async function logContainerRequest(
+    env: Env,
+    containerName: string,
+    method: string,
+    path: string,
+    statusCode: number,
+    responseTimeMs: number,
+    errorMessage?: string
+): Promise<void> {
+    try {
+        await env.METADATA.prepare(`
+            INSERT INTO request_logs (container_name, method, path, status_code, response_time_ms, error_message)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).bind(containerName, method, path, statusCode, responseTimeMs, errorMessage ?? null).run()
+    } catch {
+        // Silently ignore logging errors to not affect request handling
+        console.error('Failed to log container request')
     }
 }
 
@@ -1418,29 +1459,96 @@ async function handleSavePositions(
 
 /**
  * Handle dashboard metrics
- * Returns zeros since no containers are registered
+ * Queries real request data from D1 request_logs table
  */
-function handleDashboardMetrics(_range: string): Response {
+async function handleDashboardMetrics(env: Env, range: string): Promise<Response> {
+    // Determine time window based on range
+    const rangeMinutes: Record<string, number> = {
+        '1h': 60,
+        '6h': 360,
+        '24h': 1440,
+        '7d': 10080,
+        '30d': 43200,
+    }
+    const minutes = rangeMinutes[range] ?? 60
+
+    // Get total containers
+    const containerResult = await env.METADATA.prepare(
+        'SELECT COUNT(*) as count FROM containers'
+    ).first<{ count: number }>()
+    const totalContainers = containerResult?.count ?? 0
+
+    // Get running instances count via ping
+    const helloWorldRunning = await checkHelloWorldStatus(env)
+    const runningInstances = helloWorldRunning ? 1 : 0
+
+    // Get request stats from request_logs within time window
+    const statsResult = await env.METADATA.prepare(`
+        SELECT 
+            COUNT(*) as total_requests,
+            SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) as total_errors
+        FROM request_logs 
+        WHERE created_at >= datetime('now', '-' || ? || ' minutes')
+    `).bind(minutes).first<{ total_requests: number; total_errors: number }>()
+
+    const totalRequests = statsResult?.total_requests ?? 0
+    const totalErrors = statsResult?.total_errors ?? 0
+    const requestsPerMinute = minutes > 0 ? Math.round((totalRequests / minutes) * 100) / 100 : 0
+    const errorsPerMinute = minutes > 0 ? Math.round((totalErrors / minutes) * 100) / 100 : 0
+
+    // Get top containers by requests
+    const topResult = await env.METADATA.prepare(`
+        SELECT container_name, COUNT(*) as request_count
+        FROM request_logs 
+        WHERE created_at >= datetime('now', '-' || ? || ' minutes')
+        GROUP BY container_name
+        ORDER BY request_count DESC
+        LIMIT 5
+    `).bind(minutes).all<{ container_name: string; request_count: number }>()
+
+    const topByRequests = (topResult.results ?? []).map(r => ({
+        name: r.container_name,
+        value: r.request_count,
+    }))
+
+    // Get timeline data (buckets for request rate chart)
+    const bucketMinutes = Math.max(5, Math.floor(minutes / 20))
+    const timelineResult = await env.METADATA.prepare(`
+        SELECT 
+            strftime('%Y-%m-%dT%H:', created_at) || 
+            printf('%02d:00Z', (CAST(strftime('%M', created_at) AS INTEGER) / ?) * ?) as bucket,
+            COUNT(*) as request_count
+        FROM request_logs 
+        WHERE created_at >= datetime('now', '-' || ? || ' minutes')
+        GROUP BY bucket
+        ORDER BY bucket ASC
+    `).bind(bucketMinutes, bucketMinutes, minutes).all<{ bucket: string; request_count: number }>()
+
+    const requestTimeline = (timelineResult.results ?? []).map(r => ({
+        timestamp: r.bucket,
+        value: r.request_count,
+    }))
+
     return jsonResponse({
         aggregated: {
-            totalContainers: 0,
-            runningInstances: 0,
-            cpuUsage: 0,
-            memoryUsage: 0,
-            requestsPerMinute: 0,
-            errorsPerMinute: 0,
+            totalContainers,
+            runningInstances,
+            cpuUsage: 0, // Not available without container runtime API
+            memoryUsage: 0, // Not available without container runtime API
+            requestsPerMinute,
+            errorsPerMinute,
         },
         topContainers: {
-            byCpu: [],
-            byMemory: [],
-            byRequests: [],
+            byCpu: [], // Not available
+            byMemory: [], // Not available
+            byRequests: topByRequests,
         },
         timeline: {
-            cpu: [],
-            memory: [],
-            requests: [],
+            cpu: [], // Not available
+            memory: [], // Not available
+            requests: requestTimeline,
         },
-        message: 'No containers registered. Add containers to see metrics.',
+        message: totalContainers === 0 ? 'No containers registered. Add containers to see metrics.' : undefined,
     })
 }
 
