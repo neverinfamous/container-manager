@@ -34,6 +34,16 @@ export default {
             })
         }
 
+        // HelloWorld container route - wakes and forwards to container
+        if (url.pathname.startsWith('/hello-world')) {
+            const id = env.HELLO_WORLD.idFromName('default')
+            const container = env.HELLO_WORLD.get(id)
+            // Rewrite URL to container's expected format
+            const containerUrl = new URL(request.url)
+            containerUrl.pathname = url.pathname.replace('/hello-world', '') || '/'
+            return container.fetch(new Request(containerUrl, request))
+        }
+
         // Handle API routes
         if (url.pathname.startsWith('/api/')) {
             return handleApiRequest(request, env, ctx)
