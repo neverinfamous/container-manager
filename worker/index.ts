@@ -290,7 +290,7 @@ async function handleApiRequest(
         if (configMatch?.[1] !== undefined) {
             const name = decodeURIComponent(configMatch[1])
             if (request.method === 'GET') {
-                return handleGetConfig(name)
+                return await handleGetConfig(name, env)
             }
             if (request.method === 'PUT') {
                 const body = await request.json() as Record<string, unknown>
@@ -309,7 +309,7 @@ async function handleApiRequest(
         if (configDiffMatch?.[1] !== undefined && request.method === 'POST') {
             const name = decodeURIComponent(configDiffMatch[1])
             const body = await request.json() as Record<string, unknown>
-            return await handleConfigDiff(name, body)
+            return await handleConfigDiff(name, body, env)
         }
 
         // Logs routes
@@ -966,38 +966,71 @@ async function processScheduledActions(env: Env): Promise<void> {
 }
 
 /**
- * Get container configuration (demo data)
+ * Get container configuration
  */
-function handleGetConfig(name: string): Response {
-    // Demo configuration
+async function handleGetConfig(name: string, env: Env): Promise<Response> {
+    interface ContainerRow {
+        name: string
+        class_name: string
+        worker_name: string | null
+        image: string | null
+        instance_type: string
+        max_instances: number
+        default_port: number
+        sleep_after: string | null
+        metadata: string | null
+    }
+
+    const result = await env.METADATA.prepare(
+        'SELECT name, class_name, worker_name, image, instance_type, max_instances, default_port, sleep_after, metadata FROM containers WHERE name = ?'
+    ).bind(name).first<ContainerRow>()
+
+    if (!result) {
+        return jsonResponse({ error: 'Container not found' }, 404)
+    }
+
+    // Parse metadata JSON if present
+    let metadata: Record<string, unknown> = {}
+    if (result.metadata !== null && result.metadata.length > 0) {
+        try {
+            metadata = JSON.parse(result.metadata) as Record<string, unknown>
+        } catch {
+            // Ignore parse errors, use empty object
+        }
+    }
+
+    // Extract health check config from metadata
+    const healthCheck = (metadata['healthCheck'] as Record<string, unknown> | undefined) ?? {
+        enabled: false,
+        endpoint: '/health',
+        intervalSeconds: 30,
+        timeoutSeconds: 5,
+        failureThreshold: 3,
+        successThreshold: 1,
+    }
+
+    // Extract other config from metadata
+    const envVars = (metadata['envVars'] as unknown[]) ?? []
+    const network = (metadata['network'] as Record<string, unknown>) ?? {
+        allowEgress: true,
+        egressRules: [],
+        allowedHosts: [],
+    }
+
     const config = {
-        name,
-        className: name.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(''),
-        image: `docker.io/myorg/${name}:latest`,
-        instanceType: 'standard-1',
-        maxInstances: 5,
-        envVars: [
-            { key: 'NODE_ENV', value: 'production', isSecret: false, source: 'config' },
-            { key: 'API_KEY', value: '***', isSecret: true, source: 'config' },
-            { key: 'DATABASE_URL', value: 'postgresql://...', isSecret: true, source: 'binding' },
-        ],
-        ports: [{ containerPort: 8080, protocol: 'tcp', isDefault: true }],
-        network: {
-            allowEgress: true,
-            egressRules: [],
-            allowedHosts: ['api.cloudflare.com', '*.amazonaws.com'],
-        },
-        healthCheck: {
-            enabled: true,
-            endpoint: '/health',
-            intervalSeconds: 30,
-            timeoutSeconds: 5,
-            failureThreshold: 3,
-            successThreshold: 1,
-        },
+        name: result.name,
+        className: result.class_name,
+        workerName: result.worker_name,
+        image: result.image ?? '',
+        instanceType: result.instance_type,
+        maxInstances: result.max_instances,
+        ports: [{ containerPort: result.default_port, protocol: 'tcp', isDefault: true }],
+        envVars,
+        network,
+        healthCheck,
         sleep: {
-            enabled: true,
-            sleepAfter: '5m',
+            enabled: result.sleep_after !== null,
+            sleepAfter: result.sleep_after ?? '5m',
             wakeOnRequest: true,
         },
         updatedAt: new Date().toISOString(),
@@ -1014,16 +1047,68 @@ async function handleUpdateConfig(
     updates: Record<string, unknown>,
     env: Env
 ): Promise<Response> {
+    // Get existing metadata from the container
+    interface ContainerRow {
+        metadata: string | null
+        instance_type: string
+        max_instances: number
+    }
+
+    const existing = await env.METADATA.prepare(
+        'SELECT metadata, instance_type, max_instances FROM containers WHERE name = ?'
+    ).bind(name).first<ContainerRow>()
+
+    if (!existing) {
+        return jsonResponse({ error: 'Container not found' }, 404)
+    }
+
+    // Parse existing metadata
+    let metadata: Record<string, unknown> = {}
+    if (existing.metadata !== null && existing.metadata.length > 0) {
+        try {
+            metadata = JSON.parse(existing.metadata) as Record<string, unknown>
+        } catch {
+            // Ignore parse errors
+        }
+    }
+
+    // Merge updates into metadata
+    if (updates['healthCheck'] !== undefined) {
+        metadata['healthCheck'] = updates['healthCheck']
+    }
+    if (updates['envVars'] !== undefined) {
+        metadata['envVars'] = updates['envVars']
+    }
+    if (updates['network'] !== undefined) {
+        metadata['network'] = updates['network']
+    }
+    if (updates['sleep'] !== undefined) {
+        metadata['sleep'] = updates['sleep']
+    }
+
+    // Update instance_type and max_instances if provided (these are in main table)
+    const instanceType = (updates['instanceType'] as string) ?? existing.instance_type
+    const maxInstances = (updates['maxInstances'] as number) ?? existing.max_instances
+
+    // Persist to database
+    await env.METADATA.prepare(`
+        UPDATE containers 
+        SET metadata = ?, instance_type = ?, max_instances = ?, modified_at = datetime('now')
+        WHERE name = ?
+    `).bind(JSON.stringify(metadata), instanceType, maxInstances, name).run()
+
     // Log the update
     await env.METADATA.prepare(`
         INSERT INTO jobs (container_name, operation, status, started_at, completed_at, duration_ms, metadata)
         VALUES (?, 'update_config', 'completed', datetime('now'), datetime('now'), 50, ?)
-    `).bind(name, JSON.stringify(updates)).run()
+    `).bind(name, JSON.stringify({ updated: Object.keys(updates) })).run()
 
-    // Return updated config (in production, merge with existing and return)
+    // Return updated config
     const config = {
         name,
-        ...updates,
+        instanceType,
+        maxInstances,
+        ...metadata,
         updatedAt: new Date().toISOString(),
     }
 
@@ -1073,10 +1158,11 @@ function handleValidateConfig(updates: Record<string, unknown>): Response {
  */
 async function handleConfigDiff(
     name: string,
-    proposed: Record<string, unknown>
+    proposed: Record<string, unknown>,
+    env: Env
 ): Promise<Response> {
     // Get current config
-    const currentResponse = handleGetConfig(name)
+    const currentResponse = await handleGetConfig(name, env)
     const currentData = await currentResponse.json() as { config: Record<string, unknown> }
     const current = currentData.config
 
