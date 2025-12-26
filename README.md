@@ -1,6 +1,6 @@
 # Cloudflare Container Manager
 
-**Last Updated:** December 25, 2025 | **Version:** 0.1.0
+**Last Updated:** December 26, 2025 | **Version:** 0.1.0
 
 A management platform for Cloudflare Containers with a full-featured UI for lifecycle management, configuration, logs, metrics, scheduling, and snapshots.
 
@@ -18,15 +18,29 @@ A management platform for Cloudflare Containers with a full-featured UI for life
 > [!IMPORTANT]
 > **Cloudflare Containers is in Open Beta** and does not yet have a public management API. This project implements workarounds to provide a management UI despite these limitations.
 
-### No Container API Available
+### No Container Management API
 
 As of December 2025, Cloudflare has not released a public API for:
 - Listing deployed containers
 - Starting/stopping/restarting containers
-- Viewing container status or metrics
-- Managing container instances programmatically
+- Viewing CPU/memory metrics from container runtime
 
-**Workaround:** This project uses a **D1 Shadow Registry** approach where containers are registered manually in a D1 database. The UI reads from this registry rather than directly from Cloudflare's container runtime.
+**Workarounds Implemented:**
+- **D1 Shadow Registry** - Containers are registered in D1 database; UI reads from registry
+- **Instance Ping** - Containers are pinged via Durable Object fetch to detect running instances
+- **Request Tracking** - All container requests are logged to D1 for real-time metrics
+
+### What Works vs What's Simulated
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Container registry | ✅ Real | Stored in D1 |
+| Running instances | ✅ Real | Detected via container ping |
+| Requests/minute | ✅ Real | Logged to D1 `request_logs` table |
+| Errors/minute | ✅ Real | Tracked from status codes |
+| Request timeline | ✅ Real | Generated from D1 logs |
+| CPU/Memory usage | ❌ Simulated | Shows 0% - requires Cloudflare runtime API |
+| Log streaming | ❌ Simulated | Requires Cloudflare runtime API |
 
 ### Windows Wrangler Docker Build Hang
 
@@ -40,9 +54,9 @@ npm install  # Reinstall for Linux if node_modules are from Windows
 wrangler deploy
 ```
 
-### Container Registry Manual Registration
+### Container Registration
 
-Since there's no API to discover containers, you must manually register each container in D1 after deploying:
+You can register containers via the UI or API. CLI registration example:
 
 ```bash
 wrangler d1 execute container-manager-metadata --remote --command="INSERT INTO containers (name, class_name, worker_name, image, instance_type, max_instances, default_port, status) VALUES ('your-container', 'YourClass', 'your-worker', 'path/to/Dockerfile', 'basic', 3, 8080, 'running');"
@@ -105,9 +119,11 @@ wrangler d1 execute container-manager-metadata --remote --command="INSERT INTO c
 - ✅ Enable/disable per schedule
 
 ### Metrics Dashboard
-- 📈 CPU, memory, request metrics (placeholder until API available)
-- 📅 Time range selector (24h/7d/30d)
-- 📊 Latency percentiles (P50/P90/P99)
+- 📈 **Real request tracking** - requests/minute, errors/minute from D1
+- 🔢 **Running instance count** - detected via container ping
+- 📅 Time range selector (1h/6h/24h/7d/30d)
+- 📊 Request timeline chart
+- ⚠️ CPU/Memory shows 0% until Cloudflare provides runtime API
 
 ### Webhooks & Jobs
 - 🔔 Event-driven notifications
