@@ -157,7 +157,7 @@ export function ContainerCard({
                 </div>
 
                 {/* Actions */}
-                <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-3 overflow-hidden">
+                <div className="mt-4 flex items-center gap-2 border-t pt-3 overflow-x-auto">
                     {status === 'running' || status === 'starting' ? (
                         <>
                             <button
