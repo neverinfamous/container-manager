@@ -68,11 +68,12 @@ export function HealthCheckEditor({
                 <div className="grid gap-4 md:grid-cols-2">
                     {/* Endpoint */}
                     <div className="space-y-2">
-                        <label className="flex items-center gap-2 text-sm font-medium">
+                        <label htmlFor="health-endpoint" className="flex items-center gap-2 text-sm font-medium">
                             <Activity className="h-4 w-4" />
                             Health Endpoint
                         </label>
                         <input
+                            id="health-endpoint"
                             type="text"
                             value={config.endpoint}
                             onChange={(e) => handleChange('endpoint', e.target.value)}
@@ -87,12 +88,13 @@ export function HealthCheckEditor({
 
                     {/* Interval */}
                     <div className="space-y-2">
-                        <label className="flex items-center gap-2 text-sm font-medium">
+                        <label htmlFor="health-interval" className="flex items-center gap-2 text-sm font-medium">
                             <Clock className="h-4 w-4" />
                             Check Interval
                         </label>
                         <div className="flex items-center gap-2">
                             <input
+                                id="health-interval"
                                 type="number"
                                 value={config.intervalSeconds}
                                 onChange={(e) => handleChange('intervalSeconds', parseInt(e.target.value) || 30)}
@@ -107,12 +109,13 @@ export function HealthCheckEditor({
 
                     {/* Timeout */}
                     <div className="space-y-2">
-                        <label className="flex items-center gap-2 text-sm font-medium">
+                        <label htmlFor="health-timeout" className="flex items-center gap-2 text-sm font-medium">
                             <AlertTriangle className="h-4 w-4" />
                             Timeout
                         </label>
                         <div className="flex items-center gap-2">
                             <input
+                                id="health-timeout"
                                 type="number"
                                 value={config.timeoutSeconds}
                                 onChange={(e) => handleChange('timeoutSeconds', parseInt(e.target.value) || 5)}
@@ -127,11 +130,12 @@ export function HealthCheckEditor({
 
                     {/* Thresholds */}
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Thresholds</label>
-                        <div className="flex items-center gap-4">
+                        <span id="thresholds-label" className="text-sm font-medium">Thresholds</span>
+                        <div className="flex items-center gap-4" role="group" aria-labelledby="thresholds-label">
                             <div className="flex items-center gap-2">
-                                <span className="text-sm text-muted-foreground">Failures:</span>
+                                <label htmlFor="health-failure-threshold" className="text-sm text-muted-foreground">Failures:</label>
                                 <input
+                                    id="health-failure-threshold"
                                     type="number"
                                     value={config.failureThreshold}
                                     onChange={(e) => handleChange('failureThreshold', parseInt(e.target.value) || 3)}
@@ -142,8 +146,9 @@ export function HealthCheckEditor({
                                 />
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-sm text-muted-foreground">Successes:</span>
+                                <label htmlFor="health-success-threshold" className="text-sm text-muted-foreground">Successes:</label>
                                 <input
+                                    id="health-success-threshold"
                                     type="number"
                                     value={config.successThreshold}
                                     onChange={(e) => handleChange('successThreshold', parseInt(e.target.value) || 1)}

@@ -151,6 +151,7 @@ export function EnvVarEditor({ envVars, onChange, readOnly = false }: EnvVarEdit
                 <div className="space-y-2">
                     <div className="flex items-center gap-2">
                         <input
+                            id="env-new-key"
                             type="text"
                             value={newKey}
                             onChange={(e) => setNewKey(e.target.value.toUpperCase())}
@@ -158,6 +159,7 @@ export function EnvVarEditor({ envVars, onChange, readOnly = false }: EnvVarEdit
                             className="flex-1 px-2 py-1.5 text-sm font-mono bg-background border rounded"
                         />
                         <input
+                            id="env-new-value"
                             type={newIsSecret ? 'password' : 'text'}
                             value={newValue}
                             onChange={(e) => setNewValue(e.target.value)}

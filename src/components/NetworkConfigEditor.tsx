@@ -160,6 +160,7 @@ export function NetworkConfigEditor({
                     {!readOnly && (
                         <div className="flex items-center gap-2">
                             <input
+                                id="network-new-host"
                                 type="text"
                                 value={newHost}
                                 onChange={(e) => setNewHost(e.target.value)}
