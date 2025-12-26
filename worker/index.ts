@@ -208,8 +208,8 @@ async function handleApiRequest(
     }
 
     try {
-        // Health check
-        if (path === '/api/health') {
+        // Health check (supports both /health and /api/health)
+        if (path === '/health' || path === '/api/health') {
             return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() })
         }
 
