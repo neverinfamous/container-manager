@@ -155,8 +155,8 @@ function StepItem({
                 <button
                     onClick={onToggleComplete}
                     className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isCompleted
-                            ? 'border-green-500 bg-green-500 text-white'
-                            : 'border-zinc-600 hover:border-zinc-500'
+                        ? 'border-green-500 bg-green-500 text-white'
+                        : 'border-zinc-600 hover:border-zinc-500'
                         }`}
                 >
                     {isCompleted && <Check className="w-4 h-4" />}
@@ -198,7 +198,7 @@ function StepItem({
                                     <div className="flex-1">
                                         <span className="text-xs text-zinc-500">{cmd.label}</span>
                                         <div className="flex items-center gap-2 mt-0.5">
-                                            <code className="flex-1 text-sm bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-amber-300 font-mono overflow-x-auto whitespace-pre">
+                                            <code className="flex-1 min-w-0 text-sm bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-amber-300 font-mono overflow-x-auto whitespace-pre-wrap break-all">
                                                 {cmd.command}
                                             </code>
                                             <button
