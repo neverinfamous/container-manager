@@ -312,7 +312,13 @@ export function DependencyGraph({
                             <p className="text-sm text-muted-foreground">
                                 Paste your wrangler.toml content below to import containers and bindings.
                             </p>
+                            <label htmlFor="wrangler-toml-import" className="sr-only">
+                                Wrangler TOML Content
+                            </label>
                             <textarea
+                                id="wrangler-toml-import"
+                                name="wrangler-toml-import"
+                                aria-label="Wrangler TOML configuration content"
                                 value={importContent}
                                 onChange={(e) => setImportContent(e.target.value)}
                                 placeholder={`name = "my-worker"\n\n[[containers]]\nclass_name = "MyContainer"\nimage = "./Dockerfile"\n\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "my-database"`}
