@@ -1,15 +1,30 @@
 # Cloudflare Container Manager
 
-**Last Updated:** December 26, 2025 | **Version:** 0.1.0
+**Last Updated:** December 27, 2025 | **Version:** 0.1.0
 
 A management platform for Cloudflare Containers with a full-featured UI for lifecycle management, configuration, logs, metrics, scheduling, and snapshots.
 
 [![GitHub](https://img.shields.io/badge/GitHub-neverinfamous/container--manager-blue?logo=github)](https://github.com/neverinfamous/container-manager)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 ![Version](https://img.shields.io/badge/version-v0.1.0-green)
-![Status](https://img.shields.io/badge/status-Beta-orange)
+![Status](https://img.shields.io/badge/status-On%20Hold-yellow)
 
 **[Live Demo](https://container.adamic.tech)** • **[Wiki](https://github.com/neverinfamous/container-manager/wiki)** • **[Changelog](https://github.com/neverinfamous/container-manager/wiki/Changelog)**
+
+---
+
+> [!CAUTION]
+> ## 🚧 Project On Hold
+> 
+> **This project is paused pending Cloudflare Containers API improvements.**
+> 
+> The Cloudflare Containers API (Open Beta, December 2025) lacks critical management features:
+> - No lifecycle control (stop/restart/scale)
+> - No runtime metrics (CPU/memory)
+> - No log streaming
+> - No instance listing
+> 
+> The UI foundation is complete and ready to integrate when these APIs become available. Check [Cloudflare's changelog](https://developers.cloudflare.com/changelog/) for updates.
 
 ---
 
