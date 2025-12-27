@@ -62,3 +62,24 @@ export async function saveNodePositions(
         throw new Error(`Failed to save positions: ${response.statusText}`)
     }
 }
+
+interface ImportResult {
+    success: boolean
+    workerName?: string
+    imported?: { containers: number; bindings: number }
+    error?: string
+}
+
+/**
+ * Import topology from wrangler.toml content
+ */
+export async function importTopology(tomlContent: string): Promise<ImportResult> {
+    const response = await fetch(`${API_BASE}/topology/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: tomlContent,
+    })
+
+    const data = await response.json() as ImportResult
+    return data
+}

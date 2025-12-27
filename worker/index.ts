@@ -1,5 +1,6 @@
 import { type Env } from './types/env'
 import { Container } from '@cloudflare/containers'
+import { parse as parseToml } from 'smol-toml'
 
 /**
  * HelloWorld container for testing
@@ -367,16 +368,21 @@ async function handleApiRequest(
 
         // Topology routes
         if (path === '/api/topology' && request.method === 'GET') {
-            return handleGetTopology()
+            return await handleGetTopology(env)
         }
 
         if (path === '/api/topology/orphans' && request.method === 'GET') {
-            return handleDetectOrphans()
+            return await handleDetectOrphans(env)
         }
 
         if (path === '/api/topology/positions' && request.method === 'PUT') {
             const body = await request.json() as Record<string, { x: number; y: number }>
             return await handleSavePositions(body, env)
+        }
+
+        if (path === '/api/topology/import' && request.method === 'POST') {
+            const tomlContent = await request.text()
+            return await handleImportTopology(env, tomlContent)
         }
 
         // Metrics routes
@@ -1408,28 +1414,199 @@ async function handleHttpTest(
 /**
  * Get container topology
  * Returns registered containers and their bindings from D1.
- * Currently returns empty state since no containers are registered.
  */
-function handleGetTopology(): Response {
-    // When containers exist in D1, this should query them and their bindings
-    // For now, returns empty since no containers are configured
+async function handleGetTopology(env: Env): Promise<Response> {
+    // Get containers from D1
+    const containerResult = await env.METADATA.prepare(
+        'SELECT name, class_name, status FROM containers'
+    ).all<{ name: string; class_name: string; status: string }>()
+
+    // Get bindings from D1
+    const bindingResult = await env.METADATA.prepare(
+        'SELECT id, source_type, source_name, target_type, target_name, binding_name FROM bindings'
+    ).all<{ id: number; source_type: string; source_name: string; target_type: string; target_name: string; binding_name: string }>()
+
+    // Build nodes from containers
+    const nodeMap = new Map<string, { id: string; name: string; className: string; status: string; instanceCount: number; type: string }>()
+
+    for (const c of containerResult.results ?? []) {
+        nodeMap.set(c.name, {
+            id: c.name,
+            name: c.name,
+            className: c.class_name,
+            status: c.status,
+            instanceCount: 0,
+            type: 'container',
+        })
+    }
+
+    // Build nodes from binding targets (D1, KV, R2, DO, etc.)
+    for (const b of bindingResult.results ?? []) {
+        if (!nodeMap.has(b.target_name)) {
+            const typeMap: Record<string, string> = {
+                'd1': 'database',
+                'kv': 'storage',
+                'r2': 'storage',
+                'queue': 'service',
+                'do': 'service',
+                'service': 'service',
+            }
+            nodeMap.set(b.target_name, {
+                id: b.target_name,
+                name: b.target_name,
+                className: b.binding_name,
+                status: 'running',
+                instanceCount: 0,
+                type: typeMap[b.target_type] ?? 'service',
+            })
+        }
+    }
+
+    const nodes = Array.from(nodeMap.values())
+
+    // Build edges from bindings
+    const edges = (bindingResult.results ?? []).map(b => ({
+        id: `edge-${b.id}`,
+        source: b.source_name,
+        target: b.target_name,
+        bindingType: b.target_type,
+        bindingName: b.binding_name,
+        animated: true,
+    }))
+
     return jsonResponse({
-        nodes: [],
-        edges: [],
-        message: 'No containers registered. Add containers to see topology.',
+        nodes,
+        edges,
+        message: nodes.length === 0 ? 'No topology data. Import a wrangler.toml to visualize.' : undefined,
     })
 }
 
 /**
  * Detect orphan containers and issues
- * Returns empty since no containers are configured
  */
-function handleDetectOrphans(): Response {
+async function handleDetectOrphans(env: Env): Promise<Response> {
+    // Get containers
+    const containerResult = await env.METADATA.prepare(
+        'SELECT name FROM containers'
+    ).all<{ name: string }>()
+    const containerNames = new Set((containerResult.results ?? []).map(c => c.name))
+
+    // Get binding sources
+    const bindingResult = await env.METADATA.prepare(
+        'SELECT source_name FROM bindings'
+    ).all<{ source_name: string }>()
+
+    const boundSources = new Set((bindingResult.results ?? []).map(b => b.source_name))
+
+    // Containers not in any binding = orphans
+    const orphanContainers = Array.from(containerNames).filter(name => !boundSources.has(name))
+
     return jsonResponse({
-        orphanContainers: [],
+        orphanContainers,
         unusedBindings: [],
         circularDependencies: [],
     })
+}
+
+/**
+ * Import topology from wrangler.toml
+ */
+interface WranglerConfig {
+    name?: string
+    containers?: { class_name: string; image?: string; max_instances?: number }[]
+    d1_databases?: { binding: string; database_name: string }[]
+    kv_namespaces?: { binding: string }[]
+    r2_buckets?: { binding: string; bucket_name: string }[]
+    durable_objects?: { bindings?: { name: string; class_name: string }[] }
+    queues?: { producers?: { binding: string; queue: string }[] }
+    services?: { binding: string; service: string }[]
+}
+
+async function handleImportTopology(env: Env, tomlContent: string): Promise<Response> {
+    try {
+        const config = parseToml(tomlContent) as WranglerConfig
+        const workerName = config.name ?? 'imported-worker'
+
+        // Delete existing bindings for this worker
+        await env.METADATA.prepare('DELETE FROM bindings WHERE worker_name = ?').bind(workerName).run()
+
+        let containersImported = 0
+        let bindingsImported = 0
+
+        // Process containers
+        for (const container of config.containers ?? []) {
+            const containerName = container.class_name.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
+
+            // Add container to containers table if not exists
+            await env.METADATA.prepare(`
+                INSERT OR IGNORE INTO containers (name, class_name, worker_name, image, max_instances, status)
+                VALUES (?, ?, ?, ?, ?, 'stopped')
+            `).bind(containerName, container.class_name, workerName, container.image ?? null, container.max_instances ?? 5).run()
+            containersImported++
+
+            // D1 bindings
+            for (const d1 of config.d1_databases ?? []) {
+                await env.METADATA.prepare(`
+                    INSERT INTO bindings (source_type, source_name, target_type, target_name, binding_name, worker_name)
+                    VALUES ('container', ?, 'd1', ?, ?, ?)
+                `).bind(containerName, d1.database_name, d1.binding, workerName).run()
+                bindingsImported++
+            }
+
+            // R2 bindings
+            for (const r2 of config.r2_buckets ?? []) {
+                await env.METADATA.prepare(`
+                    INSERT INTO bindings (source_type, source_name, target_type, target_name, binding_name, worker_name)
+                    VALUES ('container', ?, 'r2', ?, ?, ?)
+                `).bind(containerName, r2.bucket_name, r2.binding, workerName).run()
+                bindingsImported++
+            }
+
+            // DO bindings
+            for (const doBinding of config.durable_objects?.bindings ?? []) {
+                await env.METADATA.prepare(`
+                    INSERT INTO bindings (source_type, source_name, target_type, target_name, binding_name, worker_name)
+                    VALUES ('container', ?, 'do', ?, ?, ?)
+                `).bind(containerName, doBinding.class_name, doBinding.name, workerName).run()
+                bindingsImported++
+            }
+
+            // KV bindings
+            for (const kv of config.kv_namespaces ?? []) {
+                await env.METADATA.prepare(`
+                    INSERT INTO bindings (source_type, source_name, target_type, target_name, binding_name, worker_name)
+                    VALUES ('container', ?, 'kv', ?, ?, ?)
+                `).bind(containerName, kv.binding, kv.binding, workerName).run()
+                bindingsImported++
+            }
+
+            // Queue bindings
+            for (const queue of config.queues?.producers ?? []) {
+                await env.METADATA.prepare(`
+                    INSERT INTO bindings (source_type, source_name, target_type, target_name, binding_name, worker_name)
+                    VALUES ('container', ?, 'queue', ?, ?, ?)
+                `).bind(containerName, queue.queue, queue.binding, workerName).run()
+                bindingsImported++
+            }
+
+            // Service bindings
+            for (const service of config.services ?? []) {
+                await env.METADATA.prepare(`
+                    INSERT INTO bindings (source_type, source_name, target_type, target_name, binding_name, worker_name)
+                    VALUES ('container', ?, 'service', ?, ?, ?)
+                `).bind(containerName, service.service, service.binding, workerName).run()
+                bindingsImported++
+            }
+        }
+
+        return jsonResponse({
+            success: true,
+            workerName,
+            imported: { containers: containersImported, bindings: bindingsImported },
+        })
+    } catch (error) {
+        return jsonResponse({ success: false, error: error instanceof Error ? error.message : 'Failed to parse TOML' }, 400)
+    }
 }
 
 /**

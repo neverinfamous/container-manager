@@ -13,10 +13,12 @@ import {
     RefreshCw,
     AlertTriangle,
     Network,
+    Upload,
+    X,
 } from 'lucide-react'
 import { ContainerNode } from './ContainerNode'
 import { BindingEdge } from './BindingEdge'
-import { fetchTopology, detectOrphans, saveNodePositions } from '@/services/topologyApi'
+import { fetchTopology, detectOrphans, saveNodePositions, importTopology } from '@/services/topologyApi'
 import { cn } from '@/lib/utils'
 import type { TopologyNode, OrphanDetection } from '@/types/topology'
 
@@ -44,6 +46,10 @@ export function DependencyGraph({
     const [loading, setLoading] = useState(true)
     const [orphans, setOrphans] = useState<OrphanDetection | null>(null)
     const [showOrphans, setShowOrphans] = useState(false)
+    const [showImportDialog, setShowImportDialog] = useState(false)
+    const [importContent, setImportContent] = useState('')
+    const [importing, setImporting] = useState(false)
+    const [importError, setImportError] = useState<string | null>(null)
 
     // Load topology data
     const loadTopology = useCallback(async (skipCache: boolean): Promise<void> => {
@@ -161,6 +167,13 @@ export function DependencyGraph({
                     >
                         <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
                     </button>
+                    <button
+                        onClick={() => setShowImportDialog(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                    >
+                        <Upload className="h-4 w-4" />
+                        Import Config
+                    </button>
                 </div>
             </div>
 
@@ -277,6 +290,82 @@ export function DependencyGraph({
                     </div>
                 )}
             </div>
+
+            {/* Import Dialog */}
+            {showImportDialog && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="bg-background rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden">
+                        <div className="flex items-center justify-between p-4 border-b">
+                            <h3 className="text-lg font-semibold">Import wrangler.toml</h3>
+                            <button
+                                onClick={() => {
+                                    setShowImportDialog(false)
+                                    setImportContent('')
+                                    setImportError(null)
+                                }}
+                                className="p-1 rounded hover:bg-muted transition-colors"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                                Paste your wrangler.toml content below to import containers and bindings.
+                            </p>
+                            <textarea
+                                value={importContent}
+                                onChange={(e) => setImportContent(e.target.value)}
+                                placeholder={`name = "my-worker"\n\n[[containers]]\nclass_name = "MyContainer"\nimage = "./Dockerfile"\n\n[[d1_databases]]\nbinding = "DB"\ndatabase_name = "my-database"`}
+                                className="w-full h-64 p-3 text-sm font-mono border rounded-lg bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                            {importError && (
+                                <p className="text-sm text-red-500">{importError}</p>
+                            )}
+                        </div>
+                        <div className="flex justify-end gap-2 p-4 border-t bg-muted/30">
+                            <button
+                                onClick={() => {
+                                    setShowImportDialog(false)
+                                    setImportContent('')
+                                    setImportError(null)
+                                }}
+                                className="px-4 py-2 text-sm rounded hover:bg-muted transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!importContent.trim()) {
+                                        setImportError('Please paste wrangler.toml content')
+                                        return
+                                    }
+                                    setImporting(true)
+                                    setImportError(null)
+                                    try {
+                                        const result = await importTopology(importContent)
+                                        if (result.success) {
+                                            setShowImportDialog(false)
+                                            setImportContent('')
+                                            void loadTopology(true)
+                                            void loadOrphans()
+                                        } else {
+                                            setImportError(result.error ?? 'Import failed')
+                                        }
+                                    } catch (err) {
+                                        setImportError(err instanceof Error ? err.message : 'Import failed')
+                                    } finally {
+                                        setImporting(false)
+                                    }
+                                }}
+                                disabled={importing || !importContent.trim()}
+                                className="px-4 py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                            >
+                                {importing ? 'Importing...' : 'Import'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
