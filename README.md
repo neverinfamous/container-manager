@@ -103,8 +103,10 @@ wrangler d1 execute container-manager-metadata --remote --command="INSERT INTO c
 
 ### Dependency Topology
 - 🕸️ Interactive container dependency graph (React Flow)
-- 🔗 Container ↔ D1/KV/R2/DO binding visualization
+- � **Import Config** - paste `wrangler.toml` to populate graph
+- �🔗 Container ↔ D1/KV/R2/DO/Queue/Service binding visualization
 - ⚡ Orphan detection (containers without bindings)
+- 💾 Node positions saved to D1
 
 ### Snapshots & Rollback
 - 📸 Create configuration snapshots
