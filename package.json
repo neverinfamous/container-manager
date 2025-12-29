@@ -45,7 +45,7 @@
         "react": "^19.2.3",
         "react-dom": "^19.2.3",
         "reactflow": "^11.11.4",
-        "recharts": "^2.15.4",
+        "recharts": "^3.6.0",
         "smol-toml": "^1.6.0"
     },
     "devDependencies": {
